@@ -59,6 +59,7 @@ fun Sidebar(
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
+    var pendingRemove by remember { mutableStateOf<Project?>(null) }
 
     Column(
         modifier = modifier
@@ -91,7 +92,7 @@ fun Sidebar(
                     selected = state.selection?.projectId == project.id &&
                         state.selection is Selection.Details,
                     onClick = { onSelectProject(project.id) },
-                    onRemove = { onRemoveProject(project.id) },
+                    onRemove = { pendingRemove = project },
                     onOpenTerminal = { onOpenTerminal(project.id) },
                 )
                 terminals.forEach { session ->
@@ -129,6 +130,19 @@ fun Sidebar(
                 pendingClose = null
             },
             onDismiss = { pendingClose = null },
+        )
+    }
+
+    pendingRemove?.let { project ->
+        ConfirmDialog(
+            title = "Remove project?",
+            message = "\"${project.name}\" will be removed from the list. Files on disk are not affected.",
+            confirmText = "Remove",
+            onConfirm = {
+                onRemoveProject(project.id)
+                pendingRemove = null
+            },
+            onDismiss = { pendingRemove = null },
         )
     }
 }
