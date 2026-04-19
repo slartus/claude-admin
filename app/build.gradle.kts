@@ -35,5 +35,9 @@ compose.desktop {
             packageName = "ClaudeAdmin"
             packageVersion = "1.0.0"
         }
+        buildTypes.release.proguard {
+            version.set("7.6.1")
+            configurationFiles.from(project.file("proguard-rules.pro"))
+        }
     }
 }

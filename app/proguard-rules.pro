@@ -1,0 +1,2 @@
+-dontwarn com.jediterm.**
+-dontwarn com.sun.jna.**
