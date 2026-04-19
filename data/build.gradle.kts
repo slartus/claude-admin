@@ -12,7 +12,6 @@ dependencies {
 
     implementation(libs.pty4j)
     implementation(libs.jediterm.core)
-    implementation(libs.jediterm.pty)
 
     implementation(libs.slf4j.simple)
 

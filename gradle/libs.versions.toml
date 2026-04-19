@@ -9,7 +9,6 @@ essenty = "2.2.0"
 koin = "4.0.0"
 pty4j = "0.13.12"
 jediterm = "3.64"
-jedipty = "2.69"
 slf4j = "2.0.16"
 junit = "5.11.3"
 
@@ -29,7 +28,6 @@ koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 pty4j = { module = "org.jetbrains.pty4j:pty4j", version.ref = "pty4j" }
 jediterm-core = { module = "org.jetbrains.jediterm:jediterm-core", version.ref = "jediterm" }
 jediterm-ui = { module = "org.jetbrains.jediterm:jediterm-ui", version.ref = "jediterm" }
-jediterm-pty = { module = "org.jetbrains.jediterm:jediterm-pty", version.ref = "jedipty" }
 
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 

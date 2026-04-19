@@ -24,8 +24,8 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.swing)
 
+    implementation(libs.jediterm.core)
     implementation(libs.jediterm.ui)
-    implementation(libs.jediterm.pty)
 }
 
 val packagingJdk: String? = run {

@@ -1,6 +1,5 @@
 package dev.claudeadmin.data.terminal
 
-import com.jediterm.pty.PtyProcessTtyConnector
 import com.jediterm.terminal.TtyConnector
 import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
@@ -32,7 +31,7 @@ object PtyFactory {
             .setInitialColumns(120)
             .setInitialRows(32)
             .start()
-        val connector = PtyProcessTtyConnector(process, StandardCharsets.UTF_8)
+        val connector = Pty4jTtyConnector(process, StandardCharsets.UTF_8)
         return PtyBackend(process, connector)
     }
 
