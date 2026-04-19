@@ -39,6 +39,7 @@ import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
+import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.presentation.root.RootState
 import dev.claudeadmin.presentation.root.Selection
 
@@ -55,6 +56,7 @@ fun Sidebar(
     onDismissError: () -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
+    var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
 
     Column(
         modifier = modifier
@@ -95,7 +97,7 @@ fun Sidebar(
                         session = session,
                         selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
                         onClick = { onSelectTerminal(project.id, session.id) },
-                        onClose = { onCloseTerminal(session.id) },
+                        onClose = { pendingClose = session },
                     )
                 }
             }
@@ -112,6 +114,19 @@ fun Sidebar(
                 pickerOpen = false
                 if (path != null) onAddProject(path, null)
             },
+        )
+    }
+
+    pendingClose?.let { session ->
+        ConfirmDialog(
+            title = "Close terminal?",
+            message = "Terminal \"${session.title}\" will be terminated.",
+            confirmText = "Close",
+            onConfirm = {
+                onCloseTerminal(session.id)
+                pendingClose = null
+            },
+            onDismiss = { pendingClose = null },
         )
     }
 }
