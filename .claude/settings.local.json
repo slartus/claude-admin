@@ -4,7 +4,8 @@
       "Bash(./gradlew tasks *)",
       "Bash(./gradlew :app:packageDistributionForCurrentOS)",
       "Bash(./gradlew :app:packageReleaseDistributionForCurrentOS)",
-      "Bash(./gradlew :app:compileKotlin)"
+      "Bash(./gradlew :app:compileKotlin)",
+      "Bash(./gradlew :app:compileKotlin --console=plain)"
     ]
   }
 }

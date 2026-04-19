@@ -15,6 +15,8 @@ import dev.claudeadmin.app.ui.details.DetailsView
 import dev.claudeadmin.app.ui.details.WelcomeView
 import dev.claudeadmin.app.ui.sidebar.Sidebar
 import dev.claudeadmin.app.ui.terminal.TerminalView
+import dev.claudeadmin.app.ui.util.openInDefaultApp
+import dev.claudeadmin.app.ui.util.revealInFinder
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import dev.claudeadmin.app.ui.terminal.TerminalWidgetCache
@@ -53,7 +55,11 @@ fun RootScreen(
             ) {
                 when (val sel = state.selection) {
                     null -> WelcomeView()
-                    is Selection.Details -> DetailsView(state.details)
+                    is Selection.Details -> DetailsView(
+                        state = state.details,
+                        onOpenFile = ::openInDefaultApp,
+                        onRevealInFinder = ::revealInFinder,
+                    )
                     is Selection.Terminal -> TerminalView(sessionId = sel.terminalId, ptyRepo = ptyRepo)
                 }
             }
