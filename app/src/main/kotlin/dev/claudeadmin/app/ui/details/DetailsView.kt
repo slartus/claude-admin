@@ -1,0 +1,179 @@
+package dev.claudeadmin.app.ui.details
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import dev.claudeadmin.domain.model.Agent
+import dev.claudeadmin.domain.model.AgentScope
+import dev.claudeadmin.domain.model.ClaudeMd
+import dev.claudeadmin.domain.model.ProjectDetails
+import dev.claudeadmin.presentation.root.DetailsState
+
+@Composable
+fun DetailsView(state: DetailsState) {
+    Box(Modifier.fillMaxSize()) {
+        when (state) {
+            DetailsState.Empty -> EmptyText("No details")
+            DetailsState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            is DetailsState.Error -> EmptyText(state.message)
+            is DetailsState.Loaded -> Content(state.details)
+        }
+    }
+}
+
+@Composable
+private fun EmptyText(text: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun Content(details: ProjectDetails) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        ClaudeMdPanel(
+            claudeMd = details.claudeMd,
+            projectName = details.project.name,
+            modifier = Modifier.weight(1f),
+        )
+        Divider(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxSize(),
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
+        AgentsPanel(
+            agents = details.agents,
+            modifier = Modifier.width(320.dp),
+        )
+    }
+}
+
+@Composable
+private fun ClaudeMdPanel(claudeMd: ClaudeMd?, projectName: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+        Text(projectName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.padding(4.dp))
+        Text("CLAUDE.md", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.padding(4.dp))
+        if (claudeMd == null) {
+            Text("(no CLAUDE.md in this folder)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = claudeMd.content,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            if (claudeMd.imports.isNotEmpty()) {
+                Spacer(Modifier.padding(8.dp))
+                Text("Imports:", fontWeight = FontWeight.SemiBold)
+                claudeMd.imports.forEach { imp ->
+                    Text(imp, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AgentsPanel(agents: List<Agent>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
+        Text(
+            text = "Agents (${agents.size})",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.padding(4.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp),
+        ) {
+            items(agents, key = { it.scope.name + it.path }) { AgentCard(it) }
+        }
+    }
+}
+
+@Composable
+private fun AgentCard(agent: Agent) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = agent.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                ScopeBadge(agent.scope)
+            }
+            val description = agent.description
+            if (!description.isNullOrBlank()) {
+                Spacer(Modifier.padding(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (agent.tools.isNotEmpty()) {
+                Spacer(Modifier.padding(2.dp))
+                Text(
+                    text = "tools: ${agent.tools.joinToString(", ")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScopeBadge(scope: AgentScope) {
+    val (label, color) = when (scope) {
+        AgentScope.PROJECT -> "project" to MaterialTheme.colorScheme.primary
+        AgentScope.USER -> "user" to MaterialTheme.colorScheme.secondary
+    }
+    Surface(color = color, modifier = Modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
