@@ -35,6 +35,8 @@ import dev.claudeadmin.domain.model.Agent
 import dev.claudeadmin.domain.model.AgentScope
 import dev.claudeadmin.domain.model.ClaudeMd
 import dev.claudeadmin.domain.model.ClaudeSettings
+import dev.claudeadmin.domain.model.Command
+import dev.claudeadmin.domain.model.CommandScope
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.presentation.root.DetailsState
 
@@ -88,12 +90,58 @@ private fun Content(
                 .fillMaxSize(),
             color = MaterialTheme.colorScheme.outlineVariant,
         )
-        AgentsPanel(
+        AgentsAndCommandsPanel(
             agents = details.agents,
+            commands = details.commands,
             onOpenFile = onOpenFile,
             onRevealInFinder = onRevealInFinder,
-            modifier = Modifier.width(320.dp),
+            modifier = Modifier.width(340.dp),
         )
+    }
+}
+
+@Composable
+private fun AgentsAndCommandsPanel(
+    agents: List<Agent>,
+    commands: List<Command>,
+    onOpenFile: (String) -> Unit,
+    onRevealInFinder: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
+        Text(
+            text = "Agents (${agents.size})",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.padding(4.dp))
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp),
+        ) {
+            items(agents, key = { it.scope.name + it.path }) {
+                AgentCard(agent = it, onOpenFile = onOpenFile, onRevealInFinder = onRevealInFinder)
+            }
+        }
+        Spacer(Modifier.padding(8.dp))
+        Divider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(Modifier.padding(8.dp))
+        Text(
+            text = "Commands (${commands.size})",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.padding(4.dp))
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp),
+        ) {
+            items(commands, key = { it.scope.name + it.path }) {
+                CommandCard(command = it, onOpenFile = onOpenFile, onRevealInFinder = onRevealInFinder)
+            }
+        }
     }
 }
 
@@ -234,32 +282,6 @@ private fun SettingsLocalSection(
 }
 
 @Composable
-private fun AgentsPanel(
-    agents: List<Agent>,
-    onOpenFile: (String) -> Unit,
-    onRevealInFinder: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
-        Text(
-            text = "Agents (${agents.size})",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.padding(4.dp))
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 4.dp),
-        ) {
-            items(agents, key = { it.scope.name + it.path }) {
-                AgentCard(agent = it, onOpenFile = onOpenFile, onRevealInFinder = onRevealInFinder)
-            }
-        }
-    }
-}
-
-@Composable
 private fun AgentCard(
     agent: Agent,
     onOpenFile: (String) -> Unit,
@@ -313,6 +335,20 @@ private fun ScopeBadge(scope: AgentScope) {
         AgentScope.PROJECT -> "project" to MaterialTheme.colorScheme.primary
         AgentScope.USER -> "user" to MaterialTheme.colorScheme.secondary
     }
+    ScopeBadgeContent(label, color)
+}
+
+@Composable
+private fun ScopeBadge(scope: CommandScope) {
+    val (label, color) = when (scope) {
+        CommandScope.PROJECT -> "project" to MaterialTheme.colorScheme.primary
+        CommandScope.USER -> "user" to MaterialTheme.colorScheme.secondary
+    }
+    ScopeBadgeContent(label, color)
+}
+
+@Composable
+private fun ScopeBadgeContent(label: String, color: androidx.compose.ui.graphics.Color) {
     Surface(color = color, modifier = Modifier) {
         Text(
             text = label,
@@ -320,5 +356,55 @@ private fun ScopeBadge(scope: AgentScope) {
             color = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )
+    }
+}
+
+@Composable
+private fun CommandCard(
+    command: Command,
+    onOpenFile: (String) -> Unit,
+    onRevealInFinder: (String) -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "/${command.name}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                ScopeBadge(command.scope)
+                OpenFileButtons(
+                    path = command.path,
+                    onOpenFile = onOpenFile,
+                    onRevealInFinder = onRevealInFinder,
+                    sizeDp = 24,
+                )
+            }
+            val description = command.description
+            if (!description.isNullOrBlank()) {
+                Spacer(Modifier.padding(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val hint = command.argumentHint
+            if (!hint.isNullOrBlank()) {
+                Spacer(Modifier.padding(2.dp))
+                Text(
+                    text = "args: $hint",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+        }
     }
 }

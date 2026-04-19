@@ -2,12 +2,14 @@ package dev.claudeadmin.app.di
 
 import dev.claudeadmin.data.agent.FileAgentRepository
 import dev.claudeadmin.data.claudemd.FileClaudeMdRepository
+import dev.claudeadmin.data.command.FileCommandRepository
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
+import dev.claudeadmin.domain.repository.CommandRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -33,6 +35,7 @@ val appModule = module {
     single<ClaudeMdRepository> { FileClaudeMdRepository() }
     single<ClaudeSettingsRepository> { FileClaudeSettingsRepository() }
     single<AgentRepository> { FileAgentRepository() }
+    single<CommandRepository> { FileCommandRepository() }
     single<PtyTerminalRepository> { PtyTerminalRepository() }
     single<TerminalRepository> { get<PtyTerminalRepository>() }
 
@@ -40,7 +43,7 @@ val appModule = module {
     factory { ObserveTerminalsUseCase(get()) }
     factory { AddProjectUseCase(get()) }
     factory { RemoveProjectUseCase(get(), get()) }
-    factory { LoadProjectDetailsUseCase(get(), get(), get(), get()) }
+    factory { LoadProjectDetailsUseCase(get(), get(), get(), get(), get()) }
     factory { OpenTerminalUseCase(get(), get()) }
     factory { CloseTerminalUseCase(get()) }
 }

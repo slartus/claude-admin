@@ -5,4 +5,5 @@ data class ProjectDetails(
     val claudeMd: ClaudeMd?,
     val settingsLocal: ClaudeSettings?,
     val agents: List<Agent>,
+    val commands: List<Command>,
 )
