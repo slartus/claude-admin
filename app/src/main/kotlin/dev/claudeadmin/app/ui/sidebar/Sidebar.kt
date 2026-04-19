@@ -15,10 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
@@ -33,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.claudeadmin.domain.model.Project
@@ -148,8 +150,8 @@ private fun ProjectRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
-        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
+        ProjectBadge(project.name)
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text(
@@ -196,6 +198,41 @@ private fun TerminalRow(
             Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
         }
     }
+}
+
+@Composable
+private fun ProjectBadge(name: String) {
+    val initials = remember(name) { projectInitials(name) }
+    val color = remember(name) { projectColor(name) }
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initials,
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun projectInitials(name: String): String {
+    val words = name.split(Regex("[\\s\\-_./]+")).filter { it.isNotBlank() }
+    return when {
+        words.isEmpty() -> "?"
+        words.size == 1 -> words[0].take(2).uppercase()
+        else -> (words[0].first().toString() + words[1].first()).uppercase()
+    }
+}
+
+private fun projectColor(key: String): Color {
+    val hash = key.hashCode()
+    val hue = ((hash.toLong() and 0xFFFFFFFFL) % 360L).toFloat()
+    return Color.hsv(hue = hue, saturation = 0.55f, value = 0.72f)
 }
 
 @Composable
