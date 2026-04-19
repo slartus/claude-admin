@@ -1,11 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./gradlew tasks *)",
-      "Bash(./gradlew :app:packageDistributionForCurrentOS)",
-      "Bash(./gradlew :app:packageReleaseDistributionForCurrentOS)",
-      "Bash(./gradlew :app:compileKotlin)",
-      "Bash(./gradlew :app:compileKotlin --console=plain)"
-    ]
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(./gradlew:*)",
+      "Bash(git:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(xargs:*)",
+      "Bash(ls:*)",
+      "Bash(kill:*)",
+      "Bash(sort:*)",
+      "Bash(cat:*)",
+      "Bash(jq:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(sed:*)",
+      "Bash(python3:*)",
+      "Bash(echo:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew :app:packageDistributionForCurrentOS --console=plain)"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }
