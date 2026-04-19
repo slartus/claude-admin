@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import dev.claudeadmin.domain.model.Agent
 import dev.claudeadmin.domain.model.AgentScope
 import dev.claudeadmin.domain.model.ClaudeMd
+import dev.claudeadmin.domain.model.ClaudeSettings
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.presentation.root.DetailsState
 
@@ -55,9 +56,10 @@ private fun EmptyText(text: String) {
 @Composable
 private fun Content(details: ProjectDetails) {
     Row(modifier = Modifier.fillMaxSize()) {
-        ClaudeMdPanel(
-            claudeMd = details.claudeMd,
+        ProjectInfoPanel(
             projectName = details.project.name,
+            claudeMd = details.claudeMd,
+            settingsLocal = details.settingsLocal,
             modifier = Modifier.weight(1f),
         )
         Divider(
@@ -74,34 +76,74 @@ private fun Content(details: ProjectDetails) {
 }
 
 @Composable
-private fun ClaudeMdPanel(claudeMd: ClaudeMd?, projectName: String, modifier: Modifier = Modifier) {
+private fun ProjectInfoPanel(
+    projectName: String,
+    claudeMd: ClaudeMd?,
+    settingsLocal: ClaudeSettings?,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         Text(projectName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.padding(4.dp))
-        Text("CLAUDE.md", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.padding(4.dp))
-        if (claudeMd == null) {
-            Text("(no CLAUDE.md in this folder)", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = claudeMd.content,
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(12.dp),
-                )
-            }
-            if (claudeMd.imports.isNotEmpty()) {
-                Spacer(Modifier.padding(8.dp))
-                Text("Imports:", fontWeight = FontWeight.SemiBold)
-                claudeMd.imports.forEach { imp ->
-                    Text(imp, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
-                }
-            }
+        ClaudeMdSection(claudeMd)
+        Spacer(Modifier.padding(8.dp))
+        SettingsLocalSection(settingsLocal)
+    }
+}
+
+@Composable
+private fun ClaudeMdSection(claudeMd: ClaudeMd?) {
+    Text("CLAUDE.md", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    Spacer(Modifier.padding(4.dp))
+    if (claudeMd == null) {
+        Text("(no CLAUDE.md in this folder)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = claudeMd.content,
+            fontFamily = FontFamily.Monospace,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(12.dp),
+        )
+    }
+    if (claudeMd.imports.isNotEmpty()) {
+        Spacer(Modifier.padding(8.dp))
+        Text("Imports:", fontWeight = FontWeight.SemiBold)
+        claudeMd.imports.forEach { imp ->
+            Text(imp, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+@Composable
+private fun SettingsLocalSection(settings: ClaudeSettings?) {
+    Text(
+        text = ".claude/settings.local.json",
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+    )
+    Spacer(Modifier.padding(4.dp))
+    if (settings == null) {
+        Text(
+            text = "(no .claude/settings.local.json in this folder)",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = settings.content,
+            fontFamily = FontFamily.Monospace,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(12.dp),
+        )
     }
 }
 

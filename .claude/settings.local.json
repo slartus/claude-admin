@@ -3,7 +3,8 @@
     "allow": [
       "Bash(./gradlew tasks *)",
       "Bash(./gradlew :app:packageDistributionForCurrentOS)",
-      "Bash(./gradlew :app:packageReleaseDistributionForCurrentOS)"
+      "Bash(./gradlew :app:packageReleaseDistributionForCurrentOS)",
+      "Bash(./gradlew :app:compileKotlin)"
     ]
   }
 }
