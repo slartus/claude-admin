@@ -52,22 +52,38 @@ class FileProjectRepository(
 
     override suspend fun get(id: ProjectId): Project? = state.value.firstOrNull { it.id == id }
 
+    override suspend fun setGitRoot(id: ProjectId, gitRoot: String?) {
+        mutex.withLock {
+            val updated = state.value.map { p ->
+                if (p.id == id) p.copy(gitRoot = gitRoot?.takeIf { it.isNotBlank() }) else p
+            }
+            if (updated == state.value) return@withLock
+            state.value = updated
+            writeToDisk(state.value)
+        }
+    }
+
     private fun readFromDisk(): List<Project> {
         if (!file.exists()) return emptyList()
         return runCatching {
             val dtos = json.decodeFromString(listSerializer, file.readText())
-            dtos.map { Project(ProjectId(it.id), it.name, it.path) }
+            dtos.map { Project(ProjectId(it.id), it.name, it.path, it.gitRoot) }
         }.getOrElse { emptyList() }
     }
 
     private suspend fun writeToDisk(items: List<Project>) = withContext(Dispatchers.IO) {
-        val dtos = items.map { ProjectDto(it.id.value, it.name, it.path) }
+        val dtos = items.map { ProjectDto(it.id.value, it.name, it.path, it.gitRoot) }
         file.parentFile?.mkdirs()
         file.writeText(json.encodeToString(listSerializer, dtos))
     }
 
     @Serializable
-    private data class ProjectDto(val id: String, val name: String, val path: String)
+    private data class ProjectDto(
+        val id: String,
+        val name: String,
+        val path: String,
+        val gitRoot: String? = null,
+    )
 
     private companion object {
         val json = Json { prettyPrint = true; ignoreUnknownKeys = true }

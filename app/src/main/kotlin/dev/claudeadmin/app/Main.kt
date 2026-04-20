@@ -19,6 +19,7 @@ import dev.claudeadmin.app.di.appModule
 import dev.claudeadmin.app.ui.RootScreen
 import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
+import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
@@ -26,6 +27,7 @@ import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import dev.claudeadmin.presentation.root.RootComponent
 import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.getKoin
@@ -51,6 +53,8 @@ fun main() = application {
             removeProject = koin.get<RemoveProjectUseCase>(),
             openTerminal = koin.get<OpenTerminalUseCase>(),
             closeTerminal = koin.get<CloseTerminalUseCase>(),
+            gitRepository = koin.get<GitRepository>(),
+            setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
         )
     }
 

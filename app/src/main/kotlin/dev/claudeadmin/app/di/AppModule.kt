@@ -3,6 +3,7 @@ package dev.claudeadmin.app.di
 import dev.claudeadmin.data.agent.FileAgentRepository
 import dev.claudeadmin.data.claudemd.FileClaudeMdRepository
 import dev.claudeadmin.data.command.FileCommandRepository
+import dev.claudeadmin.data.git.FileGitRepository
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
@@ -10,6 +11,7 @@ import dev.claudeadmin.domain.repository.AgentRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
+import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -19,6 +21,7 @@ import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +39,9 @@ val appModule = module {
     single<ClaudeSettingsRepository> { FileClaudeSettingsRepository() }
     single<AgentRepository> { FileAgentRepository() }
     single<CommandRepository> { FileCommandRepository() }
+    single<GitRepository> {
+        FileGitRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
+    }
     single<PtyTerminalRepository> { PtyTerminalRepository() }
     single<TerminalRepository> { get<PtyTerminalRepository>() }
 
@@ -46,4 +52,5 @@ val appModule = module {
     factory { LoadProjectDetailsUseCase(get(), get(), get(), get(), get()) }
     factory { OpenTerminalUseCase(get(), get()) }
     factory { CloseTerminalUseCase(get()) }
+    factory { SetProjectGitRootUseCase(get()) }
 }

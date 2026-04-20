@@ -1,5 +1,6 @@
 package dev.claudeadmin.presentation.root
 
+import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.domain.model.ProjectId
@@ -12,6 +13,8 @@ data class RootState(
     val selection: Selection? = null,
     val details: DetailsState = DetailsState.Empty,
     val addProjectError: String? = null,
+    val gitByProject: Map<ProjectId, GitStatus?> = emptyMap(),
+    val gitRootPrompts: List<ProjectId> = emptyList(),
 ) {
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
         get() = terminals.groupBy { it.projectId }

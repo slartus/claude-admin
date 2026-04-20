@@ -9,4 +9,5 @@ interface ProjectRepository {
     suspend fun add(path: String, name: String? = null): Project
     suspend fun remove(id: ProjectId)
     suspend fun get(id: ProjectId): Project?
+    suspend fun setGitRoot(id: ProjectId, gitRoot: String?)
 }

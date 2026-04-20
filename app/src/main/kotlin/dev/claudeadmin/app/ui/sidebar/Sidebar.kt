@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Terminal
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
@@ -56,10 +58,13 @@ fun Sidebar(
     onSelectTerminal: (ProjectId, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
     onDismissError: () -> Unit,
+    onSetGitRoot: (ProjectId, String?) -> Unit,
+    onDismissGitRootPrompt: (ProjectId) -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
     var pendingRemove by remember { mutableStateOf<Project?>(null) }
+    var gitRootPickerFor by remember { mutableStateOf<ProjectId?>(null) }
 
     Column(
         modifier = modifier
@@ -89,6 +94,7 @@ fun Sidebar(
                 val terminals = state.terminalsByProject[project.id].orEmpty()
                 ProjectRow(
                     project = project,
+                    git = state.gitByProject[project.id],
                     selected = state.selection?.projectId == project.id &&
                         state.selection is Selection.Details,
                     onClick = { onSelectProject(project.id) },
@@ -145,11 +151,51 @@ fun Sidebar(
             onDismiss = { pendingRemove = null },
         )
     }
+
+    val nextPromptId = state.gitRootPrompts.firstOrNull()
+    val nextPromptProject = nextPromptId?.let { id -> state.projects.firstOrNull { it.id == id } }
+    if (nextPromptProject != null && gitRootPickerFor == null) {
+        GitRootPromptDialog(
+            projectName = nextPromptProject.name,
+            onChoose = { gitRootPickerFor = nextPromptProject.id },
+            onSkip = { onDismissGitRootPrompt(nextPromptProject.id) },
+        )
+    }
+
+    gitRootPickerFor?.let { id ->
+        FolderPickerDialog(
+            onResult = { path ->
+                gitRootPickerFor = null
+                if (path != null) onSetGitRoot(id, path) else onDismissGitRootPrompt(id)
+            },
+        )
+    }
+}
+
+@Composable
+private fun GitRootPromptDialog(
+    projectName: String,
+    onChoose: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onSkip,
+        confirmButton = { TextButton(onClick = onChoose) { Text("Choose folder") } },
+        dismissButton = { TextButton(onClick = onSkip) { Text("Skip") } },
+        title = { Text("No git repository found") },
+        text = {
+            Text(
+                "\"$projectName\" doesn't contain a .git directory. " +
+                    "Pick the repository root to track the current branch.",
+            )
+        },
+    )
 }
 
 @Composable
 private fun ProjectRow(
     project: Project,
+    git: GitStatus?,
     selected: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
@@ -174,6 +220,7 @@ private fun ProjectRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
+            if (git != null) GitBranchLabel(git)
         }
         IconButton(onClick = onOpenTerminal) {
             Icon(Icons.Default.Terminal, contentDescription = "Open terminal", modifier = Modifier.size(18.dp))
@@ -181,6 +228,34 @@ private fun ProjectRow(
         IconButton(onClick = onRemove) {
             Icon(Icons.Default.Close, contentDescription = "Remove project", modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+@Composable
+private fun GitBranchLabel(git: GitStatus) {
+    val branch = git.branch
+    val sha = git.headSha
+    val label = when {
+        branch != null -> branch
+        sha != null -> "(detached) ${sha.take(7)}"
+        else -> return
+    }
+    val color = if (git.isDetached) MaterialTheme.colorScheme.tertiary
+    else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+        Icon(
+            Icons.AutoMirrored.Filled.AltRoute,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = color,
+            maxLines = 1,
+        )
     }
 }
 

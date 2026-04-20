@@ -47,6 +47,8 @@ fun RootScreen(
                 onSelectTerminal = component::selectTerminal,
                 onCloseTerminal = component::closeTerminal,
                 onDismissError = component::dismissAddProjectError,
+                onSetGitRoot = component::setGitRoot,
+                onDismissGitRootPrompt = component::dismissGitRootPrompt,
             )
             Box(
                 modifier = Modifier

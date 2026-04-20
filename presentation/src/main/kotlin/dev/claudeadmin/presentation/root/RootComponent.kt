@@ -5,6 +5,7 @@ import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
+import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
@@ -12,6 +13,7 @@ import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -31,6 +34,8 @@ class RootComponent(
     private val removeProject: RemoveProjectUseCase,
     private val openTerminal: OpenTerminalUseCase,
     private val closeTerminal: CloseTerminalUseCase,
+    private val gitRepository: GitRepository,
+    private val setProjectGitRoot: SetProjectGitRootUseCase,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -39,10 +44,44 @@ class RootComponent(
     val state: StateFlow<RootState> = _state.asStateFlow()
 
     private var detailsLoad: Job? = null
+    private val gitJobs = mutableMapOf<ProjectId, GitSubscription>()
+
+    private data class GitSubscription(val path: String, val job: Job)
 
     init {
-        scope.launch { observeProjects().collect { list -> _state.update { it.copy(projects = list) } } }
+        scope.launch {
+            observeProjects().collect { list ->
+                _state.update { it.copy(projects = list) }
+                syncGitSubscriptions(list)
+            }
+        }
         scope.launch { observeTerminals.all().collect { list -> _state.update { it.copy(terminals = list) } } }
+    }
+
+    private fun syncGitSubscriptions(projects: List<Project>) {
+        val active = projects.associateBy { it.id }
+        val toRemove = gitJobs.keys - active.keys
+        toRemove.forEach { id ->
+            gitJobs.remove(id)?.job?.cancel()
+            _state.update {
+                it.copy(
+                    gitByProject = it.gitByProject - id,
+                    gitRootPrompts = it.gitRootPrompts - id,
+                )
+            }
+        }
+        active.values.forEach { project ->
+            val effectivePath = project.gitRoot ?: project.path
+            val existing = gitJobs[project.id]
+            if (existing != null && existing.path == effectivePath) return@forEach
+            existing?.job?.cancel()
+            val job = scope.launch {
+                gitRepository.observe(effectivePath).collect { status ->
+                    _state.update { it.copy(gitByProject = it.gitByProject + (project.id to status)) }
+                }
+            }
+            gitJobs[project.id] = GitSubscription(effectivePath, job)
+        }
     }
 
     fun selectProject(id: ProjectId) {
@@ -60,10 +99,31 @@ class RootComponent(
                 onSuccess = { project: Project ->
                     _state.update { it.copy(addProjectError = null) }
                     selectProject(project.id)
+                    detectGitRootMissing(project)
                 },
                 onFailure = { t -> _state.update { it.copy(addProjectError = t.message) } },
             )
         }
+    }
+
+    private fun detectGitRootMissing(project: Project) {
+        scope.launch {
+            val status = gitRepository.observe(project.path).first()
+            if (status == null) {
+                _state.update { it.copy(gitRootPrompts = it.gitRootPrompts + project.id) }
+            }
+        }
+    }
+
+    fun setGitRoot(id: ProjectId, gitRoot: String?) {
+        scope.launch {
+            setProjectGitRoot.invoke(id, gitRoot)
+            _state.update { it.copy(gitRootPrompts = it.gitRootPrompts - id) }
+        }
+    }
+
+    fun dismissGitRootPrompt(id: ProjectId) {
+        _state.update { it.copy(gitRootPrompts = it.gitRootPrompts - id) }
     }
 
     fun removeProject(id: ProjectId) {
