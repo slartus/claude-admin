@@ -37,12 +37,15 @@ class PtyTerminalRepository(
 
     override suspend fun open(project: Project, title: String): TerminalSession =
         withContext(Dispatchers.IO) {
-            val backend = PtyFactory.spawn(project.path, command)
+            val claudeSessionId = UUID.randomUUID().toString()
+            val fullCommand = "$command --session-id=$claudeSessionId"
+            val backend = PtyFactory.spawn(project.path, fullCommand)
             val session = TerminalSession(
                 id = TerminalSessionId(UUID.randomUUID().toString()),
                 projectId = project.id,
                 title = title,
                 createdAt = System.currentTimeMillis(),
+                claudeSessionId = claudeSessionId,
             )
             mutex.withLock {
                 entries.value = entries.value + (session.id to Entry(session, backend))

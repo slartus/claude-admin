@@ -2,10 +2,13 @@ package dev.claudeadmin.presentation.root
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
+import dev.claudeadmin.domain.model.HookInstallState
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
+import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.GitRepository
+import dev.claudeadmin.domain.repository.HookInstallerRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
@@ -36,6 +39,8 @@ class RootComponent(
     private val closeTerminal: CloseTerminalUseCase,
     private val gitRepository: GitRepository,
     private val setProjectGitRoot: SetProjectGitRootUseCase,
+    private val hookInstaller: HookInstallerRepository,
+    private val agentStatusRepository: AgentStatusRepository,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -56,6 +61,55 @@ class RootComponent(
             }
         }
         scope.launch { observeTerminals.all().collect { list -> _state.update { it.copy(terminals = list) } } }
+        scope.launch {
+            agentStatusRepository.observe().collect { map ->
+                _state.update { it.copy(agentStatusBySessionId = map) }
+            }
+        }
+        refreshHookInstallState()
+    }
+
+    private fun refreshHookInstallState() {
+        scope.launch {
+            val newState = hookInstaller.currentState()
+            _state.update { it.copy(hookInstallState = newState) }
+        }
+    }
+
+    fun installHooks() {
+        scope.launch {
+            _state.update { it.copy(hookInstallInProgress = true) }
+            val result = hookInstaller.install()
+            val newState = result.fold(
+                onSuccess = { hookInstaller.currentState() },
+                onFailure = { t -> HookInstallState.Error(t.message ?: "Install failed") },
+            )
+            _state.update {
+                it.copy(
+                    hookInstallState = newState,
+                    hookInstallInProgress = false,
+                    hookBannerDismissed = false,
+                )
+            }
+        }
+    }
+
+    fun uninstallHooks() {
+        scope.launch {
+            _state.update { it.copy(hookInstallInProgress = true) }
+            val result = hookInstaller.uninstall()
+            val newState = result.fold(
+                onSuccess = { hookInstaller.currentState() },
+                onFailure = { t -> HookInstallState.Error(t.message ?: "Uninstall failed") },
+            )
+            _state.update {
+                it.copy(hookInstallState = newState, hookInstallInProgress = false)
+            }
+        }
+    }
+
+    fun dismissHookBanner() {
+        _state.update { it.copy(hookBannerDismissed = true) }
     }
 
     private fun syncGitSubscriptions(projects: List<Project>) {

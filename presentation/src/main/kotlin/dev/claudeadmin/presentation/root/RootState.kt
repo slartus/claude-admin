@@ -1,6 +1,8 @@
 package dev.claudeadmin.presentation.root
 
+import dev.claudeadmin.domain.model.AgentStatusEntry
 import dev.claudeadmin.domain.model.GitStatus
+import dev.claudeadmin.domain.model.HookInstallState
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.domain.model.ProjectId
@@ -15,6 +17,10 @@ data class RootState(
     val addProjectError: String? = null,
     val gitByProject: Map<ProjectId, GitStatus?> = emptyMap(),
     val gitRootPrompts: List<ProjectId> = emptyList(),
+    val hookInstallState: HookInstallState = HookInstallState.Unknown,
+    val hookBannerDismissed: Boolean = false,
+    val hookInstallInProgress: Boolean = false,
+    val agentStatusBySessionId: Map<String, AgentStatusEntry> = emptyMap(),
 ) {
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
         get() = terminals.groupBy { it.projectId }

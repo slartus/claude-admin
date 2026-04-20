@@ -19,7 +19,9 @@ import dev.claudeadmin.app.di.appModule
 import dev.claudeadmin.app.ui.RootScreen
 import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
+import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.GitRepository
+import dev.claudeadmin.domain.repository.HookInstallerRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
@@ -55,6 +57,8 @@ fun main() = application {
             closeTerminal = koin.get<CloseTerminalUseCase>(),
             gitRepository = koin.get<GitRepository>(),
             setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
+            hookInstaller = koin.get<HookInstallerRepository>(),
+            agentStatusRepository = koin.get<AgentStatusRepository>(),
         )
     }
 

@@ -12,4 +12,6 @@ object AppDirs {
     val userHome: File get() = File(System.getProperty("user.home"))
 
     val userClaudeDir: File get() = File(userHome, ".claude")
+
+    val statusLogFile: File get() = File(userClaudeDir, "claude-admin-status.jsonl")
 }

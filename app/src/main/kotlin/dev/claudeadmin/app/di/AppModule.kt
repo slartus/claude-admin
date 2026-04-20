@@ -4,14 +4,18 @@ import dev.claudeadmin.data.agent.FileAgentRepository
 import dev.claudeadmin.data.claudemd.FileClaudeMdRepository
 import dev.claudeadmin.data.command.FileCommandRepository
 import dev.claudeadmin.data.git.FileGitRepository
+import dev.claudeadmin.data.hooks.FileAgentStatusRepository
+import dev.claudeadmin.data.hooks.FileHookInstaller
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentRepository
+import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
 import dev.claudeadmin.domain.repository.GitRepository
+import dev.claudeadmin.domain.repository.HookInstallerRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -44,6 +48,10 @@ val appModule = module {
     }
     single<PtyTerminalRepository> { PtyTerminalRepository() }
     single<TerminalRepository> { get<PtyTerminalRepository>() }
+    single<HookInstallerRepository> { FileHookInstaller() }
+    single<AgentStatusRepository> {
+        FileAgentStatusRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
+    }
 
     factory { ObserveProjectsUseCase(get()) }
     factory { ObserveTerminalsUseCase(get()) }

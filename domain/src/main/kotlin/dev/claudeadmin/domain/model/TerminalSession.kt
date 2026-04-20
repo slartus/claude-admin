@@ -5,6 +5,7 @@ data class TerminalSession(
     val projectId: ProjectId,
     val title: String,
     val createdAt: Long,
+    val claudeSessionId: String? = null,
 )
 
 @JvmInline
