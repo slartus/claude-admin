@@ -6,8 +6,12 @@ import dev.claudeadmin.data.command.FileCommandRepository
 import dev.claudeadmin.data.git.FileGitRepository
 import dev.claudeadmin.data.hooks.FileAgentStatusRepository
 import dev.claudeadmin.data.hooks.FileHookInstaller
+import dev.claudeadmin.data.hooks.FileHookRepository
+import dev.claudeadmin.data.mcp.FileMcpServerRepository
+import dev.claudeadmin.data.outputstyle.FileOutputStyleRepository
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
+import dev.claudeadmin.data.skill.FileSkillRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentRepository
 import dev.claudeadmin.domain.repository.AgentStatusRepository
@@ -16,7 +20,11 @@ import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.repository.HookInstallerRepository
+import dev.claudeadmin.domain.repository.HookRepository
+import dev.claudeadmin.domain.repository.McpServerRepository
+import dev.claudeadmin.domain.repository.OutputStyleRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
+import dev.claudeadmin.domain.repository.SkillRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
@@ -43,6 +51,10 @@ val appModule = module {
     single<ClaudeSettingsRepository> { FileClaudeSettingsRepository() }
     single<AgentRepository> { FileAgentRepository() }
     single<CommandRepository> { FileCommandRepository() }
+    single<SkillRepository> { FileSkillRepository() }
+    single<OutputStyleRepository> { FileOutputStyleRepository() }
+    single<HookRepository> { FileHookRepository() }
+    single<McpServerRepository> { FileMcpServerRepository() }
     single<GitRepository> {
         FileGitRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
     }
@@ -57,7 +69,7 @@ val appModule = module {
     factory { ObserveTerminalsUseCase(get()) }
     factory { AddProjectUseCase(get()) }
     factory { RemoveProjectUseCase(get(), get()) }
-    factory { LoadProjectDetailsUseCase(get(), get(), get(), get(), get()) }
+    factory { LoadProjectDetailsUseCase(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     factory { OpenTerminalUseCase(get(), get()) }
     factory { CloseTerminalUseCase(get()) }
     factory { SetProjectGitRootUseCase(get()) }

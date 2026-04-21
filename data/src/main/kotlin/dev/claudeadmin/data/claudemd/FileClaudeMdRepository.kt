@@ -1,5 +1,6 @@
 package dev.claudeadmin.data.claudemd
 
+import dev.claudeadmin.data.util.AppDirs
 import dev.claudeadmin.domain.model.ClaudeMd
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import kotlinx.coroutines.Dispatchers
@@ -9,10 +10,17 @@ import java.io.File
 class FileClaudeMdRepository : ClaudeMdRepository {
 
     override suspend fun load(projectPath: String): ClaudeMd? = withContext(Dispatchers.IO) {
-        val file = File(projectPath, "CLAUDE.md")
-        if (!file.isFile) return@withContext null
-        val content = file.readText()
-        ClaudeMd(path = file.absolutePath, content = content, imports = extractImports(content))
+        read(File(projectPath, "CLAUDE.md"))
+    }
+
+    override suspend fun loadUser(): ClaudeMd? = withContext(Dispatchers.IO) {
+        read(File(AppDirs.userClaudeDir, "CLAUDE.md"))
+    }
+
+    private fun read(file: File): ClaudeMd? {
+        if (!file.isFile) return null
+        val content = runCatching { file.readText() }.getOrNull() ?: return null
+        return ClaudeMd(path = file.absolutePath, content = content, imports = extractImports(content))
     }
 
     private fun extractImports(content: String): List<String> =
