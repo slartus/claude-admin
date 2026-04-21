@@ -9,9 +9,13 @@ class OpenTerminalUseCase(
     private val projects: ProjectRepository,
     private val terminals: TerminalRepository,
 ) {
-    suspend operator fun invoke(projectId: ProjectId, title: String = "claude"): Result<TerminalSession> {
+    suspend operator fun invoke(
+        projectId: ProjectId,
+        title: String = "claude",
+        resumeSessionId: String? = null,
+    ): Result<TerminalSession> {
         val project = projects.get(projectId)
             ?: return Result.failure(IllegalStateException("Project $projectId not found"))
-        return runCatching { terminals.open(project, title) }
+        return runCatching { terminals.open(project, title, resumeSessionId) }
     }
 }

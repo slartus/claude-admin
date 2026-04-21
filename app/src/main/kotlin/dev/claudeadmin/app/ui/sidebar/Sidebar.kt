@@ -26,7 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -38,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.claudeadmin.domain.model.AgentStatus
+import dev.claudeadmin.domain.model.ClaudeSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.HookInstallState
 import dev.claudeadmin.domain.model.Project
@@ -68,6 +73,9 @@ fun Sidebar(
     onOpenTerminal: (ProjectId) -> Unit,
     onSelectTerminal: (ProjectId, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
+    onResumeSession: (ProjectId, String) -> Unit,
+    onResumeOrphanSession: (cwd: String, sessionId: String) -> Unit,
+    onAddProjectFromOrphan: (cwd: String) -> Unit,
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
     onDismissGitRootPrompt: (ProjectId) -> Unit,
@@ -78,6 +86,8 @@ fun Sidebar(
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
     var pendingRemove by remember { mutableStateOf<Project?>(null) }
     var gitRootPickerFor by remember { mutableStateOf<ProjectId?>(null) }
+    val sessionsExpanded = remember { mutableStateMapOf<ProjectId, Boolean>() }
+    var orphanExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -137,6 +147,59 @@ fun Sidebar(
                         onClick = { onSelectTerminal(project.id, session.id) },
                         onClose = { pendingClose = session },
                     )
+                }
+                val savedSessions = state.visibleSavedSessionsByProject[project.id].orEmpty()
+                if (savedSessions.isNotEmpty()) {
+                    val expanded = sessionsExpanded[project.id] == true
+                    SessionsGroupHeader(
+                        count = savedSessions.size,
+                        expanded = expanded,
+                        onToggle = { sessionsExpanded[project.id] = !expanded },
+                    )
+                    if (expanded) {
+                        savedSessions.forEach { session ->
+                            SavedSessionRow(
+                                session = session,
+                                onClick = { onResumeSession(project.id, session.id) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            val orphanGroups = state.visibleOrphanSessionsByCwd
+            val orphanTotal = orphanGroups.values.sumOf { it.size }
+            if (orphanTotal > 0) {
+                item(key = "orphan-divider") {
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                }
+                item(key = "orphan-header") {
+                    OrphanGroupHeader(
+                        count = orphanTotal,
+                        expanded = orphanExpanded,
+                        onToggle = { orphanExpanded = !orphanExpanded },
+                    )
+                }
+                if (orphanExpanded) {
+                    val flat = buildList<OrphanRow> {
+                        orphanGroups.forEach { (cwd, sessions) ->
+                            add(OrphanRow.Cwd(cwd, sessions.size))
+                            sessions.forEach { session -> add(OrphanRow.Session(cwd, session)) }
+                        }
+                    }
+                    items(flat, key = { it.key }) { row ->
+                        when (row) {
+                            is OrphanRow.Cwd -> OrphanCwdRow(
+                                cwd = row.cwd,
+                                count = row.count,
+                                onAddAsProject = { onAddProjectFromOrphan(row.cwd) },
+                            )
+                            is OrphanRow.Session -> OrphanSessionRow(
+                                session = row.session,
+                                onClick = { onResumeOrphanSession(row.cwd, row.session.id) },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -342,6 +405,187 @@ private fun TerminalRow(
 }
 
 @Composable
+private fun OrphanGroupHeader(
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = "Other sessions · $count",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun OrphanCwdRow(
+    cwd: String,
+    count: Int,
+    onAddAsProject: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 2.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = cwd,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+            )
+            Text(
+                text = "$count session${if (count == 1) "" else "s"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onAddAsProject, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.Add, contentDescription = "Add as project", modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun OrphanSessionRow(
+    session: ClaudeSession,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 36.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Icon(
+            Icons.Default.History,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = session.preview,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = formatRelative(session.lastModified),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun SessionsGroupHeader(
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            Icons.Default.History,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = "Sessions · $count",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SavedSessionRow(
+    session: ClaudeSession,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 52.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Icon(
+            Icons.Default.History,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = session.preview,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = formatRelative(session.lastModified),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
+}
+
+private fun formatRelative(timestampMs: Long): String {
+    val diff = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0)
+    val minutes = diff / 60_000L
+    val hours = minutes / 60L
+    val days = hours / 24L
+    return when {
+        minutes < 1L -> "now"
+        minutes < 60L -> "${minutes}m"
+        hours < 24L -> "${hours}h"
+        days < 30L -> "${days}d"
+        else -> "${days / 30L}mo"
+    }
+}
+
+@Composable
 private fun StatusDot(status: AgentStatus?) {
     if (status == null) return
     val baseColor = when (status) {
@@ -389,6 +633,16 @@ private fun ProjectBadge(name: String) {
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
         )
+    }
+}
+
+private sealed interface OrphanRow {
+    val key: String
+    data class Cwd(val cwd: String, val count: Int) : OrphanRow {
+        override val key: String get() = "orphan-cwd:$cwd"
+    }
+    data class Session(val cwd: String, val session: ClaudeSession) : OrphanRow {
+        override val key: String get() = "orphan-session:$cwd:${session.id}"
     }
 }
 

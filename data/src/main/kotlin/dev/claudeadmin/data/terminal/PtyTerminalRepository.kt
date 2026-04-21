@@ -35,10 +35,18 @@ class PtyTerminalRepository(
                 .sortedBy { it.createdAt }
         }
 
-    override suspend fun open(project: Project, title: String): TerminalSession =
+    override suspend fun open(
+        project: Project,
+        title: String,
+        resumeSessionId: String?,
+    ): TerminalSession =
         withContext(Dispatchers.IO) {
-            val claudeSessionId = UUID.randomUUID().toString()
-            val fullCommand = "$command --session-id=$claudeSessionId"
+            val claudeSessionId = resumeSessionId ?: UUID.randomUUID().toString()
+            val fullCommand = if (resumeSessionId != null) {
+                "$command --resume $resumeSessionId"
+            } else {
+                "$command --session-id=$claudeSessionId"
+            }
             val backend = PtyFactory.spawn(project.path, fullCommand)
             val session = TerminalSession(
                 id = TerminalSessionId(UUID.randomUUID().toString()),

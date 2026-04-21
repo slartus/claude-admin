@@ -20,6 +20,7 @@ import dev.claudeadmin.app.ui.RootScreen
 import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentStatusRepository
+import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.repository.HookInstallerRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -59,6 +60,7 @@ fun main() = application {
             setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
             hookInstaller = koin.get<HookInstallerRepository>(),
             agentStatusRepository = koin.get<AgentStatusRepository>(),
+            claudeSessionRepository = koin.get<ClaudeSessionRepository>(),
         )
     }
 

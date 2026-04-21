@@ -35,12 +35,13 @@ class FileProjectRepository(
 
     override suspend fun add(path: String, name: String?): Project {
         val finalName = name?.takeIf { it.isNotBlank() } ?: File(path).name
-        val project = Project(id = ProjectId(UUID.randomUUID().toString()), name = finalName, path = path)
         mutex.withLock {
+            state.value.firstOrNull { it.path == path }?.let { return it }
+            val project = Project(id = ProjectId(UUID.randomUUID().toString()), name = finalName, path = path)
             state.value = state.value + project
             writeToDisk(state.value)
+            return project
         }
-        return project
     }
 
     override suspend fun remove(id: ProjectId) {

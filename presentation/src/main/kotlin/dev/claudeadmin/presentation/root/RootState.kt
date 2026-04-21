@@ -1,6 +1,7 @@
 package dev.claudeadmin.presentation.root
 
 import dev.claudeadmin.domain.model.AgentStatusEntry
+import dev.claudeadmin.domain.model.ClaudeSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.HookInstallState
 import dev.claudeadmin.domain.model.Project
@@ -21,9 +22,30 @@ data class RootState(
     val hookBannerDismissed: Boolean = false,
     val hookInstallInProgress: Boolean = false,
     val agentStatusBySessionId: Map<String, AgentStatusEntry> = emptyMap(),
+    val savedSessionsByProject: Map<ProjectId, List<ClaudeSession>> = emptyMap(),
+    val orphanSessionsByCwd: Map<String, List<ClaudeSession>> = emptyMap(),
 ) {
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
         get() = terminals.groupBy { it.projectId }
+
+    val visibleSavedSessionsByProject: Map<ProjectId, List<ClaudeSession>>
+        get() {
+            val active = activeSessionIds()
+            return savedSessionsByProject.mapValues { (_, list) ->
+                list.filterNot { it.id in active }
+            }
+        }
+
+    val visibleOrphanSessionsByCwd: Map<String, List<ClaudeSession>>
+        get() {
+            val active = activeSessionIds()
+            return orphanSessionsByCwd
+                .mapValues { (_, list) -> list.filterNot { it.id in active } }
+                .filterValues { it.isNotEmpty() }
+        }
+
+    private fun activeSessionIds(): Set<String> =
+        terminals.mapNotNullTo(hashSetOf()) { it.claudeSessionId }
 }
 
 sealed interface Selection {

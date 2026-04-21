@@ -10,12 +10,14 @@ import dev.claudeadmin.data.hooks.FileHookRepository
 import dev.claudeadmin.data.mcp.FileMcpServerRepository
 import dev.claudeadmin.data.outputstyle.FileOutputStyleRepository
 import dev.claudeadmin.data.project.FileProjectRepository
+import dev.claudeadmin.data.session.FileClaudeSessionRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.skill.FileSkillRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentRepository
 import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
+import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
 import dev.claudeadmin.domain.repository.GitRepository
@@ -57,6 +59,9 @@ val appModule = module {
     single<McpServerRepository> { FileMcpServerRepository() }
     single<GitRepository> {
         FileGitRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
+    }
+    single<ClaudeSessionRepository> {
+        FileClaudeSessionRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
     }
     single<PtyTerminalRepository> { PtyTerminalRepository() }
     single<TerminalRepository> { get<PtyTerminalRepository>() }

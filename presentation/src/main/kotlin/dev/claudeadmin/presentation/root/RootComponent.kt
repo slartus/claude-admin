@@ -2,11 +2,13 @@ package dev.claudeadmin.presentation.root
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
+import dev.claudeadmin.domain.model.ClaudeSession
 import dev.claudeadmin.domain.model.HookInstallState
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
 import dev.claudeadmin.domain.repository.AgentStatusRepository
+import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.repository.HookInstallerRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -41,6 +43,7 @@ class RootComponent(
     private val setProjectGitRoot: SetProjectGitRootUseCase,
     private val hookInstaller: HookInstallerRepository,
     private val agentStatusRepository: AgentStatusRepository,
+    private val claudeSessionRepository: ClaudeSessionRepository,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -53,10 +56,13 @@ class RootComponent(
 
     private data class GitSubscription(val path: String, val job: Job)
 
+    @Volatile
+    private var allSessions: List<ClaudeSession> = emptyList()
+
     init {
         scope.launch {
             observeProjects().collect { list ->
-                _state.update { it.copy(projects = list) }
+                applyProjectsAndGrouping(list, allSessions)
                 syncGitSubscriptions(list)
             }
         }
@@ -66,7 +72,38 @@ class RootComponent(
                 _state.update { it.copy(agentStatusBySessionId = map) }
             }
         }
+        scope.launch {
+            claudeSessionRepository.observeAll().collect { sessions ->
+                allSessions = sessions
+                applyProjectsAndGrouping(_state.value.projects, sessions)
+            }
+        }
         refreshHookInstallState()
+    }
+
+    private fun applyProjectsAndGrouping(projects: List<Project>, sessions: List<ClaudeSession>) {
+        val sortedProjects = projects.sortedByDescending { it.path.length }
+        val tracked = HashMap<ProjectId, MutableList<ClaudeSession>>()
+        val orphans = LinkedHashMap<String, MutableList<ClaudeSession>>()
+        for (session in sessions) {
+            val matched = sortedProjects.firstOrNull { project ->
+                session.cwd == project.path || session.cwd.startsWith(project.path + "/")
+            }
+            if (matched != null) {
+                tracked.getOrPut(matched.id) { mutableListOf() }.add(session)
+            } else {
+                orphans.getOrPut(session.cwd) { mutableListOf() }.add(session)
+            }
+        }
+        val cappedTracked = tracked.mapValues { (_, v) -> v.take(SESSIONS_PER_BUCKET) }
+        val cappedOrphans = orphans.mapValues { (_, v) -> v.take(SESSIONS_PER_BUCKET) }
+        _state.update {
+            it.copy(
+                projects = projects,
+                savedSessionsByProject = cappedTracked,
+                orphanSessionsByCwd = cappedOrphans,
+            )
+        }
     }
 
     private fun refreshHookInstallState() {
@@ -197,6 +234,28 @@ class RootComponent(
         }
     }
 
+    fun resumeClaudeSession(projectId: ProjectId, sessionId: String) {
+        scope.launch {
+            openTerminal.invoke(projectId, resumeSessionId = sessionId).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(projectId, session.id)) }
+            }
+        }
+    }
+
+    fun resumeOrphanSession(cwd: String, sessionId: String) {
+        scope.launch {
+            addProject.invoke(cwd, null).onSuccess { project ->
+                openTerminal.invoke(project.id, resumeSessionId = sessionId).onSuccess { session ->
+                    _state.update { it.copy(selection = Selection.Terminal(project.id, session.id)) }
+                }
+            }
+        }
+    }
+
+    fun addProjectFromOrphan(cwd: String) {
+        scope.launch { addProject.invoke(cwd, null) }
+    }
+
     fun closeTerminal(id: TerminalSessionId) {
         scope.launch {
             closeTerminal.invoke(id)
@@ -211,6 +270,10 @@ class RootComponent(
 
     fun dismissAddProjectError() {
         _state.update { it.copy(addProjectError = null) }
+    }
+
+    private companion object {
+        const val SESSIONS_PER_BUCKET = 50
     }
 
     private fun loadDetailsFor(id: ProjectId) {
