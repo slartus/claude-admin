@@ -18,4 +18,10 @@ class OpenTerminalUseCase(
             ?: return Result.failure(IllegalStateException("Project $projectId not found"))
         return runCatching { terminals.open(project, title, resumeSessionId) }
     }
+
+    suspend fun openDetached(
+        cwd: String,
+        title: String = "claude",
+        resumeSessionId: String? = null,
+    ): Result<TerminalSession> = runCatching { terminals.openDetached(cwd, title, resumeSessionId) }
 }

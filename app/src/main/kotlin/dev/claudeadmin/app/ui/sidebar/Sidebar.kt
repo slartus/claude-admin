@@ -71,7 +71,7 @@ fun Sidebar(
     onSelectProject: (ProjectId) -> Unit,
     onRemoveProject: (ProjectId) -> Unit,
     onOpenTerminal: (ProjectId) -> Unit,
-    onSelectTerminal: (ProjectId, TerminalSessionId) -> Unit,
+    onSelectTerminal: (ProjectId?, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
     onResumeSession: (ProjectId, String) -> Unit,
     onResumeOrphanSession: (cwd: String, sessionId: String) -> Unit,
@@ -140,8 +140,11 @@ fun Sidebar(
                 terminals.forEach { session ->
                     val status = session.claudeSessionId
                         ?.let { state.agentStatusBySessionId[it]?.status }
+                    val displayTitle = session.claudeSessionId
+                        ?.let { state.sessionPreviewById[it] }
+                        ?: session.title
                     TerminalRow(
-                        session = session,
+                        title = displayTitle,
                         status = status,
                         selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
                         onClick = { onSelectTerminal(project.id, session.id) },
@@ -167,8 +170,9 @@ fun Sidebar(
                 }
             }
 
-            val orphanGroups = state.visibleOrphanSessionsByCwd
+            val orphanGroups = state.orphanSessionsByCwd
             val orphanTotal = orphanGroups.values.sumOf { it.size }
+            val detachedBySession = state.detachedTerminalBySessionId
             if (orphanTotal > 0) {
                 item(key = "orphan-divider") {
                     Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -187,6 +191,7 @@ fun Sidebar(
                             sessions.forEach { session -> add(OrphanRow.Session(cwd, session)) }
                         }
                     }
+                    val selectedTerminalId = (state.selection as? Selection.Terminal)?.terminalId
                     items(flat, key = { it.key }) { row ->
                         when (row) {
                             is OrphanRow.Cwd -> OrphanCwdRow(
@@ -194,10 +199,30 @@ fun Sidebar(
                                 count = row.count,
                                 onAddAsProject = { onAddProjectFromOrphan(row.cwd) },
                             )
-                            is OrphanRow.Session -> OrphanSessionRow(
-                                session = row.session,
-                                onClick = { onResumeOrphanSession(row.cwd, row.session.id) },
-                            )
+                            is OrphanRow.Session -> {
+                                val runningTerminal = detachedBySession[row.session.id]
+                                val agentStatus = row.session.id
+                                    .let { state.agentStatusBySessionId[it]?.status }
+                                OrphanSessionRow(
+                                    session = row.session,
+                                    running = runningTerminal != null,
+                                    selected = runningTerminal != null && selectedTerminalId == runningTerminal.id,
+                                    status = if (runningTerminal != null) agentStatus else null,
+                                    displayText = if (runningTerminal != null) {
+                                        state.sessionPreviewById[row.session.id] ?: row.session.preview
+                                    } else {
+                                        row.session.preview
+                                    },
+                                    onClick = {
+                                        if (runningTerminal != null) {
+                                            onSelectTerminal(null, runningTerminal.id)
+                                        } else {
+                                            onResumeOrphanSession(row.cwd, row.session.id)
+                                        }
+                                    },
+                                    onClose = runningTerminal?.let { term -> { pendingClose = term } },
+                                )
+                            }
                         }
                     }
                 }
@@ -369,7 +394,7 @@ private fun GitBranchLabel(git: GitStatus) {
 
 @Composable
 private fun TerminalRow(
-    session: TerminalSession,
+    title: String,
     status: AgentStatus?,
     selected: Boolean,
     onClick: () -> Unit,
@@ -387,7 +412,7 @@ private fun TerminalRow(
         Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(6.dp))
         Text(
-            text = session.title,
+            text = title,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f),
             maxLines = 1,
@@ -467,36 +492,62 @@ private fun OrphanCwdRow(
 @Composable
 private fun OrphanSessionRow(
     session: ClaudeSession,
+    running: Boolean,
+    selected: Boolean,
+    status: AgentStatus?,
+    displayText: String,
     onClick: () -> Unit,
+    onClose: (() -> Unit)?,
 ) {
+    val bg = when {
+        selected -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainer
+    }
+    val textColor = if (running) MaterialTheme.colorScheme.onSurface
+    else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .background(bg)
             .clickable(onClick = onClick)
             .padding(start = 36.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
     ) {
         Icon(
-            Icons.Default.History,
+            imageVector = if (running) Icons.Default.Terminal else Icons.Default.History,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = textColor,
             modifier = Modifier.size(14.dp),
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = session.preview,
+            text = displayText,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = textColor,
             modifier = Modifier.weight(1f),
             maxLines = 1,
         )
         Spacer(Modifier.width(6.dp))
-        Text(
-            text = formatRelative(session.lastModified),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
+        if (running) {
+            Box(
+                modifier = Modifier.size(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                StatusDot(status)
+            }
+            if (onClose != null) {
+                IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
+                }
+            }
+        } else {
+            Text(
+                text = formatRelative(session.lastModified),
+                style = MaterialTheme.typography.labelSmall,
+                color = textColor,
+                maxLines = 1,
+            )
+        }
     }
 }
 

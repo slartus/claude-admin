@@ -14,5 +14,10 @@ interface TerminalRepository {
         title: String = "claude",
         resumeSessionId: String? = null,
     ): TerminalSession
+    suspend fun openDetached(
+        cwd: String,
+        title: String = "claude",
+        resumeSessionId: String? = null,
+    ): TerminalSession
     suspend fun close(id: TerminalSessionId)
 }

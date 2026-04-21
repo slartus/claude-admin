@@ -39,27 +39,40 @@ class PtyTerminalRepository(
         project: Project,
         title: String,
         resumeSessionId: String?,
-    ): TerminalSession =
-        withContext(Dispatchers.IO) {
-            val claudeSessionId = resumeSessionId ?: UUID.randomUUID().toString()
-            val fullCommand = if (resumeSessionId != null) {
-                "$command --resume $resumeSessionId"
-            } else {
-                "$command --session-id=$claudeSessionId"
-            }
-            val backend = PtyFactory.spawn(project.path, fullCommand)
-            val session = TerminalSession(
-                id = TerminalSessionId(UUID.randomUUID().toString()),
-                projectId = project.id,
-                title = title,
-                createdAt = System.currentTimeMillis(),
-                claudeSessionId = claudeSessionId,
-            )
-            mutex.withLock {
-                entries.value = entries.value + (session.id to Entry(session, backend))
-            }
-            session
+    ): TerminalSession = spawn(projectId = project.id, cwd = project.path, title = title, resumeSessionId = resumeSessionId)
+
+    override suspend fun openDetached(
+        cwd: String,
+        title: String,
+        resumeSessionId: String?,
+    ): TerminalSession = spawn(projectId = null, cwd = cwd, title = title, resumeSessionId = resumeSessionId)
+
+    private suspend fun spawn(
+        projectId: ProjectId?,
+        cwd: String,
+        title: String,
+        resumeSessionId: String?,
+    ): TerminalSession = withContext(Dispatchers.IO) {
+        val claudeSessionId = resumeSessionId ?: UUID.randomUUID().toString()
+        val fullCommand = if (resumeSessionId != null) {
+            "$command --resume $resumeSessionId"
+        } else {
+            "$command --session-id=$claudeSessionId"
         }
+        val backend = PtyFactory.spawn(cwd, fullCommand)
+        val session = TerminalSession(
+            id = TerminalSessionId(UUID.randomUUID().toString()),
+            projectId = projectId,
+            cwd = cwd,
+            title = title,
+            createdAt = System.currentTimeMillis(),
+            claudeSessionId = claudeSessionId,
+        )
+        mutex.withLock {
+            entries.value = entries.value + (session.id to Entry(session, backend))
+        }
+        session
+    }
 
     override suspend fun close(id: TerminalSessionId) {
         val entry = mutex.withLock {

@@ -97,11 +97,13 @@ class RootComponent(
         }
         val cappedTracked = tracked.mapValues { (_, v) -> v.take(SESSIONS_PER_BUCKET) }
         val cappedOrphans = orphans.mapValues { (_, v) -> v.take(SESSIONS_PER_BUCKET) }
+        val previewById = sessions.associate { it.id to it.preview }
         _state.update {
             it.copy(
                 projects = projects,
                 savedSessionsByProject = cappedTracked,
                 orphanSessionsByCwd = cappedOrphans,
+                sessionPreviewById = previewById,
             )
         }
     }
@@ -180,7 +182,7 @@ class RootComponent(
         loadDetailsFor(id)
     }
 
-    fun selectTerminal(projectId: ProjectId, terminalId: TerminalSessionId) {
+    fun selectTerminal(projectId: ProjectId?, terminalId: TerminalSessionId) {
         _state.update { it.copy(selection = Selection.Terminal(projectId, terminalId)) }
     }
 
@@ -244,10 +246,8 @@ class RootComponent(
 
     fun resumeOrphanSession(cwd: String, sessionId: String) {
         scope.launch {
-            addProject.invoke(cwd, null).onSuccess { project ->
-                openTerminal.invoke(project.id, resumeSessionId = sessionId).onSuccess { session ->
-                    _state.update { it.copy(selection = Selection.Terminal(project.id, session.id)) }
-                }
+            openTerminal.openDetached(cwd, resumeSessionId = sessionId).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(null, session.id)) }
             }
         }
     }
@@ -262,7 +262,8 @@ class RootComponent(
             _state.update { s ->
                 val sel = s.selection
                 if (sel is Selection.Terminal && sel.terminalId == id) {
-                    s.copy(selection = Selection.Details(sel.projectId))
+                    val projectId = sel.projectId
+                    s.copy(selection = projectId?.let { Selection.Details(it) })
                 } else s
             }
         }

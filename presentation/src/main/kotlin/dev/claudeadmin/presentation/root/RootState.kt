@@ -24,36 +24,39 @@ data class RootState(
     val agentStatusBySessionId: Map<String, AgentStatusEntry> = emptyMap(),
     val savedSessionsByProject: Map<ProjectId, List<ClaudeSession>> = emptyMap(),
     val orphanSessionsByCwd: Map<String, List<ClaudeSession>> = emptyMap(),
+    val sessionPreviewById: Map<String, String> = emptyMap(),
 ) {
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
-        get() = terminals.groupBy { it.projectId }
+        get() = terminals.asSequence()
+            .mapNotNull { t -> t.projectId?.let { it to t } }
+            .groupBy({ it.first }, { it.second })
+
+    val detachedTerminalBySessionId: Map<String, TerminalSession>
+        get() = terminals.asSequence()
+            .filter { it.projectId == null }
+            .mapNotNull { t -> t.claudeSessionId?.let { it to t } }
+            .toMap()
 
     val visibleSavedSessionsByProject: Map<ProjectId, List<ClaudeSession>>
         get() {
-            val active = activeSessionIds()
+            val active = activeTrackedSessionIds()
             return savedSessionsByProject.mapValues { (_, list) ->
                 list.filterNot { it.id in active }
             }
         }
 
-    val visibleOrphanSessionsByCwd: Map<String, List<ClaudeSession>>
-        get() {
-            val active = activeSessionIds()
-            return orphanSessionsByCwd
-                .mapValues { (_, list) -> list.filterNot { it.id in active } }
-                .filterValues { it.isNotEmpty() }
-        }
-
-    private fun activeSessionIds(): Set<String> =
-        terminals.mapNotNullTo(hashSetOf()) { it.claudeSessionId }
+    private fun activeTrackedSessionIds(): Set<String> =
+        terminals.asSequence()
+            .filter { it.projectId != null }
+            .mapNotNullTo(hashSetOf()) { it.claudeSessionId }
 }
 
 sealed interface Selection {
-    val projectId: ProjectId
+    val projectId: ProjectId?
 
     data class Details(override val projectId: ProjectId) : Selection
     data class Terminal(
-        override val projectId: ProjectId,
+        override val projectId: ProjectId?,
         val terminalId: TerminalSessionId,
     ) : Selection
 }
