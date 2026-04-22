@@ -18,6 +18,7 @@ import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,7 @@ class RootComponent(
     private val closeTerminal: CloseTerminalUseCase,
     private val gitRepository: GitRepository,
     private val setProjectGitRoot: SetProjectGitRootUseCase,
+    private val reorderProjects: ReorderProjectsUseCase,
     private val hookInstaller: HookInstallerRepository,
     private val agentStatusRepository: AgentStatusRepository,
     private val claudeSessionRepository: ClaudeSessionRepository,
@@ -217,6 +219,18 @@ class RootComponent(
 
     fun dismissGitRootPrompt(id: ProjectId) {
         _state.update { it.copy(gitRootPrompts = it.gitRootPrompts - id) }
+    }
+
+    fun reorderProjects(movingId: ProjectId, targetId: ProjectId) {
+        if (movingId == targetId) return
+        val current = _state.value.projects
+        val fromIdx = current.indexOfFirst { it.id == movingId }
+        val targetIdx = current.indexOfFirst { it.id == targetId }
+        if (fromIdx < 0 || targetIdx < 0) return
+        val ids = current.map { it.id }.toMutableList()
+        ids.removeAt(fromIdx)
+        ids.add(targetIdx, movingId)
+        scope.launch { reorderProjects.invoke(ids) }
     }
 
     fun removeProject(id: ProjectId) {

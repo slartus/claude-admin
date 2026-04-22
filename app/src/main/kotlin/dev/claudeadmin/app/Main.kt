@@ -35,6 +35,7 @@ import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import dev.claudeadmin.presentation.root.RootComponent
 import kotlinx.coroutines.FlowPreview
@@ -67,6 +68,7 @@ fun main() = application {
             closeTerminal = koin.get<CloseTerminalUseCase>(),
             gitRepository = koin.get<GitRepository>(),
             setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
+            reorderProjects = koin.get<ReorderProjectsUseCase>(),
             hookInstaller = koin.get<HookInstallerRepository>(),
             agentStatusRepository = koin.get<AgentStatusRepository>(),
             claudeSessionRepository = koin.get<ClaudeSessionRepository>(),

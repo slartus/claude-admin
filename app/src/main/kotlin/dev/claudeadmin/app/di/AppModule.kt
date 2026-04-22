@@ -35,6 +35,7 @@ import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,4 +79,5 @@ val appModule = module {
     factory { OpenTerminalUseCase(get(), get()) }
     factory { CloseTerminalUseCase(get()) }
     factory { SetProjectGitRootUseCase(get()) }
+    factory { ReorderProjectsUseCase(get()) }
 }

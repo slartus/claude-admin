@@ -10,4 +10,5 @@ interface ProjectRepository {
     suspend fun remove(id: ProjectId)
     suspend fun get(id: ProjectId): Project?
     suspend fun setGitRoot(id: ProjectId, gitRoot: String?)
+    suspend fun reorder(orderedIds: List<ProjectId>)
 }

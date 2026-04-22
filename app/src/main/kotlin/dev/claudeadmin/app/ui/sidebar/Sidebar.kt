@@ -8,6 +8,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
@@ -28,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Terminal
@@ -40,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +55,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import kotlin.math.abs
 import dev.claudeadmin.domain.model.AgentStatus
 import dev.claudeadmin.domain.model.ClaudeSession
 import dev.claudeadmin.domain.model.GitStatus
@@ -70,6 +80,7 @@ fun Sidebar(
     onAddProject: (path: String, name: String?) -> Unit,
     onSelectProject: (ProjectId) -> Unit,
     onRemoveProject: (ProjectId) -> Unit,
+    onReorderProjects: (movingId: ProjectId, targetId: ProjectId) -> Unit,
     onOpenTerminal: (ProjectId) -> Unit,
     onSelectTerminal: (ProjectId?, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
@@ -88,6 +99,8 @@ fun Sidebar(
     var gitRootPickerFor by remember { mutableStateOf<ProjectId?>(null) }
     val sessionsExpanded = remember { mutableStateMapOf<ProjectId, Boolean>() }
     var orphanExpanded by remember { mutableStateOf(false) }
+    val lazyState = rememberLazyListState()
+    var drag by remember { mutableStateOf<ProjectDragInfo?>(null) }
 
     Column(
         modifier = modifier
@@ -121,50 +134,88 @@ fun Sidebar(
         }
         Divider()
 
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
+        LazyColumn(
+            state = lazyState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 4.dp),
+        ) {
             items(state.projects, key = { it.id.value }) { project ->
-                val terminals = state.terminalsByProject[project.id].orEmpty()
-                val terminalStatuses = terminals.mapNotNull { session ->
-                    session.claudeSessionId?.let { state.agentStatusBySessionId[it]?.status }
+                val isDragging by remember(project.id) {
+                    derivedStateOf { drag?.id == project.id }
                 }
-                ProjectRow(
-                    project = project,
-                    git = state.gitByProject[project.id],
-                    aggregateStatus = aggregateStatus(terminalStatuses),
-                    selected = state.selection?.projectId == project.id &&
-                        state.selection is Selection.Details,
-                    onClick = { onSelectProject(project.id) },
-                    onRemove = { pendingRemove = project },
-                    onOpenTerminal = { onOpenTerminal(project.id) },
-                )
-                terminals.forEach { session ->
-                    val status = session.claudeSessionId
-                        ?.let { state.agentStatusBySessionId[it]?.status }
-                    val displayTitle = session.claudeSessionId
-                        ?.let { state.sessionPreviewById[it] }
-                        ?: session.title
-                    TerminalRow(
-                        title = displayTitle,
-                        status = status,
-                        selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
-                        onClick = { onSelectTerminal(project.id, session.id) },
-                        onClose = { pendingClose = session },
-                    )
-                }
-                val savedSessions = state.visibleSavedSessionsByProject[project.id].orEmpty()
-                if (savedSessions.isNotEmpty()) {
-                    val expanded = sessionsExpanded[project.id] == true
-                    SessionsGroupHeader(
-                        count = savedSessions.size,
-                        expanded = expanded,
-                        onToggle = { sessionsExpanded[project.id] = !expanded },
-                    )
-                    if (expanded) {
-                        savedSessions.forEach { session ->
-                            SavedSessionRow(
-                                session = session,
-                                onClick = { onResumeSession(project.id, session.id) },
+                Column(
+                    modifier = Modifier
+                        .zIndex(if (isDragging) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = drag?.takeIf { it.id == project.id }?.offsetY ?: 0f
+                        },
+                ) {
+                    val terminals = state.terminalsByProject[project.id].orEmpty()
+                    val terminalStatuses = terminals.mapNotNull { session ->
+                        session.claudeSessionId?.let { state.agentStatusBySessionId[it]?.status }
+                    }
+                    ProjectRow(
+                        project = project,
+                        git = state.gitByProject[project.id],
+                        aggregateStatus = aggregateStatus(terminalStatuses),
+                        selected = state.selection?.projectId == project.id &&
+                            state.selection is Selection.Details,
+                        dragging = isDragging,
+                        onClick = { onSelectProject(project.id) },
+                        onRemove = { pendingRemove = project },
+                        onOpenTerminal = { onOpenTerminal(project.id) },
+                        dragHandleModifier = Modifier.pointerInput(project.id) {
+                            detectDragGestures(
+                                onDragStart = {
+                                    drag = ProjectDragInfo(project.id, 0f)
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    drag = drag?.let { it.copy(offsetY = it.offsetY + amount.y) }
+                                },
+                                onDragEnd = {
+                                    val d = drag
+                                    if (d != null) {
+                                        val targetId = computeTargetId(d, lazyState, state.projects)
+                                        if (targetId != null && targetId != d.id) {
+                                            onReorderProjects(d.id, targetId)
+                                        }
+                                    }
+                                    drag = null
+                                },
+                                onDragCancel = { drag = null },
                             )
+                        },
+                    )
+                    terminals.forEach { session ->
+                        val status = session.claudeSessionId
+                            ?.let { state.agentStatusBySessionId[it]?.status }
+                        val displayTitle = session.claudeSessionId
+                            ?.let { state.sessionPreviewById[it] }
+                            ?: session.title
+                        TerminalRow(
+                            title = displayTitle,
+                            status = status,
+                            selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
+                            onClick = { onSelectTerminal(project.id, session.id) },
+                            onClose = { pendingClose = session },
+                        )
+                    }
+                    val savedSessions = state.visibleSavedSessionsByProject[project.id].orEmpty()
+                    if (savedSessions.isNotEmpty()) {
+                        val expanded = sessionsExpanded[project.id] == true
+                        SessionsGroupHeader(
+                            count = savedSessions.size,
+                            expanded = expanded,
+                            onToggle = { sessionsExpanded[project.id] = !expanded },
+                        )
+                        if (expanded) {
+                            savedSessions.forEach { session ->
+                                SavedSessionRow(
+                                    session = session,
+                                    onClick = { onResumeSession(project.id, session.id) },
+                                )
+                            }
                         }
                     }
                 }
@@ -315,19 +366,27 @@ private fun ProjectRow(
     git: GitStatus?,
     aggregateStatus: AgentStatus?,
     selected: Boolean,
+    dragging: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     onOpenTerminal: () -> Unit,
+    dragHandleModifier: Modifier,
 ) {
-    val bg = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer
+    val bg = when {
+        dragging -> MaterialTheme.colorScheme.secondaryContainer
+        selected -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainer
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .background(bg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(start = 4.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
     ) {
+        DragHandle(dragHandleModifier = dragHandleModifier)
+        Spacer(Modifier.width(4.dp))
         ProjectBadge(project.name)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -685,6 +744,59 @@ private fun ProjectBadge(name: String) {
             fontWeight = FontWeight.SemiBold,
         )
     }
+}
+
+private data class ProjectDragInfo(
+    val id: ProjectId,
+    val offsetY: Float,
+)
+
+@Composable
+private fun DragHandle(dragHandleModifier: Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {},
+            )
+            .then(dragHandleModifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.DragIndicator,
+            contentDescription = "Reorder project",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+private fun computeTargetId(
+    drag: ProjectDragInfo,
+    lazyState: LazyListState,
+    projects: List<Project>,
+): ProjectId? {
+    val idsByKey = HashMap<String, ProjectId>(projects.size)
+    projects.forEach { p -> idsByKey[p.id.value] = p.id }
+    val projectItems = lazyState.layoutInfo.visibleItemsInfo.filter { info ->
+        val k = info.key
+        k is String && idsByKey.containsKey(k)
+    }
+    val dragged = projectItems.firstOrNull { it.key == drag.id.value } ?: return null
+    val draggedCenter = dragged.offset + dragged.size / 2f + drag.offsetY
+    val first = projectItems.first()
+    val last = projectItems.last()
+    val targetKey = when {
+        draggedCenter <= first.offset + first.size / 2f -> first.key as String
+        draggedCenter >= last.offset + last.size / 2f -> last.key as String
+        else -> projectItems.minByOrNull { info ->
+            abs((info.offset + info.size / 2f) - draggedCenter)
+        }?.key as? String ?: return null
+    }
+    return idsByKey[targetKey]
 }
 
 private sealed interface OrphanRow {

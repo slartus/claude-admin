@@ -64,6 +64,20 @@ class FileProjectRepository(
         }
     }
 
+    override suspend fun reorder(orderedIds: List<ProjectId>) {
+        mutex.withLock {
+            val current = state.value
+            val byId = current.associateBy { it.id }
+            val requested = orderedIds.mapNotNull { byId[it] }
+            val requestedIds = requested.mapTo(HashSet(requested.size)) { it.id }
+            val tail = current.filter { it.id !in requestedIds }
+            val reordered = requested + tail
+            if (reordered == current) return@withLock
+            state.value = reordered
+            writeToDisk(state.value)
+        }
+    }
+
     private fun readFromDisk(): List<Project> {
         if (!file.exists()) return emptyList()
         return runCatching {

@@ -43,6 +43,7 @@ fun RootScreen(
                 onAddProject = component::addProject,
                 onSelectProject = component::selectProject,
                 onRemoveProject = component::removeProject,
+                onReorderProjects = component::reorderProjects,
                 onOpenTerminal = component::openTerminal,
                 onSelectTerminal = component::selectTerminal,
                 onCloseTerminal = component::closeTerminal,
