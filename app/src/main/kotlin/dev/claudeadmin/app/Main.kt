@@ -2,6 +2,7 @@ package dev.claudeadmin.app
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -12,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import com.arkivanov.decompose.DefaultComponentContext
@@ -22,8 +24,10 @@ import dev.claudeadmin.app.ui.RootScreen
 import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.app.ui.util.LocalParentWindowState
 import dev.claudeadmin.app.ui.util.loadWindowState
+import dev.claudeadmin.app.ui.util.openInDefaultApp
 import dev.claudeadmin.app.ui.util.saveWindowState
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
+import dev.claudeadmin.data.util.CrashReporter
 import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
@@ -43,9 +47,22 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.getKoin
+import java.io.File
 
 @OptIn(FlowPreview::class)
-fun main() = application {
+fun main() {
+    val priorCrashes = CrashReporter.snapshotUnseenCrashes()
+    CrashReporter.install()
+    application {
+        AppContent(priorCrashes = priorCrashes)
+    }
+}
+
+@OptIn(FlowPreview::class)
+@Composable
+private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
+    var crashesToShow by remember { mutableStateOf(priorCrashes) }
+
     remember {
         startKoin { modules(appModule) }
     }
@@ -122,6 +139,26 @@ fun main() = application {
                     exit()
                 },
                 onDismiss = { confirmExit = false },
+            )
+        }
+
+        if (crashesToShow.isNotEmpty()) {
+            val count = crashesToShow.size
+            val noun = if (count == 1) "crash" else "crashes"
+            ConfirmDialog(
+                title = "Previous session crashed",
+                message = "Found $count $noun from a previous run. Open the crash log folder?",
+                confirmText = "Open Folder",
+                dismissText = "Dismiss",
+                onConfirm = {
+                    openInDefaultApp(CrashReporter.directory.absolutePath)
+                    CrashReporter.markSeen(crashesToShow)
+                    crashesToShow = emptyList()
+                },
+                onDismiss = {
+                    CrashReporter.markSeen(crashesToShow)
+                    crashesToShow = emptyList()
+                },
             )
         }
     }
