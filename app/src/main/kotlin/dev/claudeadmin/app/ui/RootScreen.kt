@@ -2,8 +2,10 @@ package dev.claudeadmin.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,41 +38,44 @@ fun RootScreen(
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            Sidebar(
-                modifier = Modifier.width(300.dp),
-                state = state,
-                onAddProject = component::addProject,
-                onSelectProject = component::selectProject,
-                onRemoveProject = component::removeProject,
-                onReorderProjects = component::reorderProjects,
-                onOpenTerminal = component::openTerminal,
-                onSelectTerminal = component::selectTerminal,
-                onCloseTerminal = component::closeTerminal,
-                onResumeSession = component::resumeClaudeSession,
-                onResumeOrphanSession = component::resumeOrphanSession,
-                onAddProjectFromOrphan = component::addProjectFromOrphan,
-                onDismissError = component::dismissAddProjectError,
-                onSetGitRoot = component::setGitRoot,
-                onDismissGitRootPrompt = component::dismissGitRootPrompt,
-                onInstallHooks = component::installHooks,
-                onDismissHookBanner = component::dismissHookBanner,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface),
-            ) {
-                when (val sel = state.selection) {
-                    null -> WelcomeView()
-                    is Selection.Details -> DetailsView(
-                        state = state.details,
-                        onOpenFile = ::openInDefaultApp,
-                        onRevealInFinder = ::revealInFinder,
-                    )
-                    is Selection.Terminal -> TerminalView(sessionId = sel.terminalId, ptyRepo = ptyRepo)
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Sidebar(
+                    modifier = Modifier.width(300.dp),
+                    state = state,
+                    onAddProject = component::addProject,
+                    onSelectProject = component::selectProject,
+                    onRemoveProject = component::removeProject,
+                    onReorderProjects = component::reorderProjects,
+                    onOpenTerminal = component::openTerminal,
+                    onSelectTerminal = component::selectTerminal,
+                    onCloseTerminal = component::closeTerminal,
+                    onResumeSession = component::resumeClaudeSession,
+                    onResumeOrphanSession = component::resumeOrphanSession,
+                    onAddProjectFromOrphan = component::addProjectFromOrphan,
+                    onDismissError = component::dismissAddProjectError,
+                    onSetGitRoot = component::setGitRoot,
+                    onDismissGitRootPrompt = component::dismissGitRootPrompt,
+                    onInstallHooks = component::installHooks,
+                    onDismissHookBanner = component::dismissHookBanner,
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface),
+                ) {
+                    when (val sel = state.selection) {
+                        null -> WelcomeView()
+                        is Selection.Details -> DetailsView(
+                            state = state.details,
+                            onOpenFile = ::openInDefaultApp,
+                            onRevealInFinder = ::revealInFinder,
+                        )
+                        is Selection.Terminal -> TerminalView(sessionId = sel.terminalId, ptyRepo = ptyRepo)
+                    }
                 }
             }
+            StatusBar(terminals = state.terminals, ptyRepo = ptyRepo)
         }
     }
 }

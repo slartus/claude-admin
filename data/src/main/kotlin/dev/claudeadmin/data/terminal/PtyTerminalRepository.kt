@@ -86,4 +86,9 @@ class PtyTerminalRepository(
     fun connectorFor(id: TerminalSessionId): TtyConnector? = entries.value[id]?.backend?.connector
 
     fun isAlive(id: TerminalSessionId): Boolean = entries.value[id]?.backend?.isAlive == true
+
+    fun livePids(): Map<TerminalSessionId, Long> =
+        entries.value.mapNotNull { (id, entry) ->
+            if (entry.backend.isAlive) id to entry.backend.process.pid() else null
+        }.toMap()
 }
