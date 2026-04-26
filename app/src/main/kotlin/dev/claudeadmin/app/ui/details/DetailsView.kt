@@ -44,8 +44,6 @@ import dev.claudeadmin.domain.model.ClaudeMd
 import dev.claudeadmin.domain.model.ClaudeSettings
 import dev.claudeadmin.domain.model.Command
 import dev.claudeadmin.domain.model.CommandScope
-import dev.claudeadmin.domain.model.Hook
-import dev.claudeadmin.domain.model.HookScope
 import dev.claudeadmin.domain.model.McpServer
 import dev.claudeadmin.domain.model.McpServerScope
 import dev.claudeadmin.domain.model.OutputStyle
@@ -211,9 +209,6 @@ private fun buildProjectSections(d: ProjectDetails): List<Section> = listOfNotNu
     commandsSection(d.commands.filter { it.scope == CommandScope.PROJECT }),
     skillsSection(d.skills.filter { it.scope == SkillScope.PROJECT }),
     outputStylesSection(d.outputStyles.filter { it.scope == OutputStyleScope.PROJECT }),
-    hooksSection(
-        d.hooks.filter { it.scope == HookScope.PROJECT || it.scope == HookScope.PROJECT_LOCAL },
-    ),
     mcpSection(
         d.mcpServers.filter {
             it.scope == McpServerScope.PROJECT || it.scope == McpServerScope.PROJECT_LOCAL
@@ -232,7 +227,6 @@ private fun buildGlobalSections(d: ProjectDetails): List<Section> = listOfNotNul
     commandsSection(d.commands.filter { it.scope == CommandScope.USER }),
     skillsSection(d.skills.filter { it.scope == SkillScope.USER }),
     outputStylesSection(d.outputStyles.filter { it.scope == OutputStyleScope.USER }),
-    hooksSection(d.hooks.filter { it.scope == HookScope.USER }),
     mcpSection(d.mcpServers.filter { it.scope == McpServerScope.USER }),
 )
 
@@ -342,27 +336,6 @@ private fun outputStylesSection(styles: List<OutputStyle>): Section? {
                 badges = listOf(Badge(s.scope.label(), s.scope.badge())),
                 body = s.body,
                 filePath = s.path,
-            )
-        },
-    )
-}
-
-private fun hooksSection(hooks: List<Hook>): Section? {
-    if (hooks.isEmpty()) return null
-    return Section(
-        title = "Hooks",
-        items = hooks.mapIndexed { i, h ->
-            DetailItem(
-                key = "hook:$i:" + h.sourcePath + ":" + h.event + ":" + (h.matcher ?: ""),
-                title = h.event + if (h.matcher != null) " [${h.matcher}]" else "",
-                titleMonospace = true,
-                badges = listOfNotNull(
-                    Badge(h.scope.label(), h.scope.badge()),
-                    if (h.async) Badge("async", BadgeKind.NEUTRAL) else null,
-                    h.type.takeIf { it.isNotEmpty() }?.let { Badge(it, BadgeKind.NEUTRAL) },
-                ),
-                body = h.command,
-                filePath = h.sourcePath,
             )
         },
     )
@@ -564,18 +537,6 @@ private fun OutputStyleScope.label(): String = when (this) {
 private fun OutputStyleScope.badge(): BadgeKind = when (this) {
     OutputStyleScope.PROJECT -> BadgeKind.PROJECT
     OutputStyleScope.USER -> BadgeKind.USER
-}
-
-private fun HookScope.label(): String = when (this) {
-    HookScope.PROJECT -> "project"
-    HookScope.PROJECT_LOCAL -> "local"
-    HookScope.USER -> "user"
-}
-
-private fun HookScope.badge(): BadgeKind = when (this) {
-    HookScope.PROJECT -> BadgeKind.PROJECT
-    HookScope.PROJECT_LOCAL -> BadgeKind.PROJECT_LOCAL
-    HookScope.USER -> BadgeKind.USER
 }
 
 private fun McpServerScope.label(): String = when (this) {

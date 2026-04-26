@@ -56,8 +56,6 @@ fun RootScreen(
                     onDismissError = component::dismissAddProjectError,
                     onSetGitRoot = component::setGitRoot,
                     onDismissGitRootPrompt = component::dismissGitRootPrompt,
-                    onInstallHooks = component::installHooks,
-                    onDismissHookBanner = component::dismissHookBanner,
                 )
                 Box(
                     modifier = Modifier

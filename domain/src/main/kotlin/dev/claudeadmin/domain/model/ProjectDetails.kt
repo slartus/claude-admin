@@ -11,6 +11,5 @@ data class ProjectDetails(
     val commands: List<Command>,
     val skills: List<Skill>,
     val outputStyles: List<OutputStyle>,
-    val hooks: List<Hook>,
     val mcpServers: List<McpServer>,
 )

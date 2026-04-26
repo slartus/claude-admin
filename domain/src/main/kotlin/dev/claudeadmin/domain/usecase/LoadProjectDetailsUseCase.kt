@@ -6,7 +6,6 @@ import dev.claudeadmin.domain.repository.AgentRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
-import dev.claudeadmin.domain.repository.HookRepository
 import dev.claudeadmin.domain.repository.McpServerRepository
 import dev.claudeadmin.domain.repository.OutputStyleRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
@@ -20,7 +19,6 @@ class LoadProjectDetailsUseCase(
     private val commands: CommandRepository,
     private val skills: SkillRepository,
     private val outputStyles: OutputStyleRepository,
-    private val hooks: HookRepository,
     private val mcpServers: McpServerRepository,
 ) {
     suspend operator fun invoke(id: ProjectId): ProjectDetails? {
@@ -36,7 +34,6 @@ class LoadProjectDetailsUseCase(
             commands = commands.loadForProject(project.path),
             skills = skills.loadForProject(project.path),
             outputStyles = outputStyles.loadForProject(project.path),
-            hooks = hooks.loadForProject(project.path),
             mcpServers = mcpServers.loadForProject(project.path),
         )
     }

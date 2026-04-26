@@ -1,16 +1,9 @@
 package dev.claudeadmin.app.ui.sidebar
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,19 +22,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,10 +52,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
-import dev.claudeadmin.domain.model.AgentStatus
 import dev.claudeadmin.domain.model.ClaudeSession
 import dev.claudeadmin.domain.model.GitStatus
-import dev.claudeadmin.domain.model.HookInstallState
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
@@ -91,8 +79,6 @@ fun Sidebar(
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
     onDismissGitRootPrompt: (ProjectId) -> Unit,
-    onInstallHooks: () -> Unit,
-    onDismissHookBanner: () -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
@@ -108,15 +94,6 @@ fun Sidebar(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainer),
     ) {
-        if (shouldShowHookBanner(state)) {
-            HookInstallBanner(
-                state = state.hookInstallState,
-                inProgress = state.hookInstallInProgress,
-                onInstall = onInstallHooks,
-                onDismiss = onDismissHookBanner,
-            )
-        }
-
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -152,13 +129,9 @@ fun Sidebar(
                         },
                 ) {
                     val terminals = state.terminalsByProject[project.id].orEmpty()
-                    val terminalStatuses = terminals.mapNotNull { session ->
-                        session.claudeSessionId?.let { state.agentStatusBySessionId[it]?.status }
-                    }
                     ProjectRow(
                         project = project,
                         git = state.gitByProject[project.id],
-                        aggregateStatus = aggregateStatus(terminalStatuses),
                         selected = state.selection?.projectId == project.id &&
                             state.selection is Selection.Details,
                         dragging = isDragging,
@@ -189,14 +162,11 @@ fun Sidebar(
                         },
                     )
                     terminals.forEach { session ->
-                        val status = session.claudeSessionId
-                            ?.let { state.agentStatusBySessionId[it]?.status }
                         val displayTitle = session.claudeSessionId
                             ?.let { state.sessionPreviewById[it] }
                             ?: session.title
                         TerminalRow(
                             title = displayTitle,
-                            status = status,
                             selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
                             onClick = { onSelectTerminal(project.id, session.id) },
                             onClose = { pendingClose = session },
@@ -253,13 +223,10 @@ fun Sidebar(
                             )
                             is OrphanRow.Session -> {
                                 val runningTerminal = detachedBySession[row.session.id]
-                                val agentStatus = row.session.id
-                                    .let { state.agentStatusBySessionId[it]?.status }
                                 OrphanSessionRow(
                                     session = row.session,
                                     running = runningTerminal != null,
                                     selected = runningTerminal != null && selectedTerminalId == runningTerminal.id,
-                                    status = if (runningTerminal != null) agentStatus else null,
                                     displayText = if (runningTerminal != null) {
                                         state.sessionPreviewById[row.session.id] ?: row.session.preview
                                     } else {
@@ -365,7 +332,6 @@ private fun GitRootPromptDialog(
 private fun ProjectRow(
     project: Project,
     git: GitStatus?,
-    aggregateStatus: AgentStatus?,
     selected: Boolean,
     dragging: Boolean,
     onClick: () -> Unit,
@@ -402,27 +368,12 @@ private fun ProjectRow(
             )
             if (git != null) GitBranchLabel(git)
         }
-        Box(
-            modifier = Modifier.size(14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            StatusDot(aggregateStatus)
-        }
         IconButton(onClick = onOpenTerminal) {
             Icon(Icons.Default.Terminal, contentDescription = "Open terminal", modifier = Modifier.size(18.dp))
         }
         IconButton(onClick = onRemove) {
             Icon(Icons.Default.Close, contentDescription = "Remove project", modifier = Modifier.size(18.dp))
         }
-    }
-}
-
-private fun aggregateStatus(statuses: List<AgentStatus>): AgentStatus? {
-    if (statuses.isEmpty()) return null
-    return when {
-        AgentStatus.WAITING in statuses -> AgentStatus.WAITING
-        AgentStatus.WORKING in statuses -> AgentStatus.WORKING
-        else -> AgentStatus.IDLE
     }
 }
 
@@ -459,7 +410,6 @@ private fun GitBranchLabel(git: GitStatus) {
 @Composable
 private fun TerminalRow(
     title: String,
-    status: AgentStatus?,
     selected: Boolean,
     onClick: () -> Unit,
     onClose: () -> Unit,
@@ -481,12 +431,6 @@ private fun TerminalRow(
             modifier = Modifier.weight(1f),
             maxLines = 1,
         )
-        Box(
-            modifier = Modifier.size(14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            StatusDot(status)
-        }
         IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
         }
@@ -558,7 +502,6 @@ private fun OrphanSessionRow(
     session: ClaudeSession,
     running: Boolean,
     selected: Boolean,
-    status: AgentStatus?,
     displayText: String,
     onClick: () -> Unit,
     onClose: (() -> Unit)?,
@@ -593,12 +536,6 @@ private fun OrphanSessionRow(
         )
         Spacer(Modifier.width(6.dp))
         if (running) {
-            Box(
-                modifier = Modifier.size(14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                StatusDot(status)
-            }
             if (onClose != null) {
                 IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
@@ -698,37 +635,6 @@ private fun formatRelative(timestampMs: Long): String {
         days < 30L -> "${days}d"
         else -> "${days / 30L}mo"
     }
-}
-
-@Composable
-private fun StatusDot(status: AgentStatus?) {
-    if (status == null) return
-    val baseColor = when (status) {
-        AgentStatus.WORKING -> MaterialTheme.colorScheme.primary
-        AgentStatus.WAITING -> Color(0xFFFFB300)
-        AgentStatus.IDLE -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val alpha by when (status) {
-        AgentStatus.WAITING -> {
-            val t = rememberInfiniteTransition(label = "waiting-pulse")
-            t.animateFloat(
-                initialValue = 0.4f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 700, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "waiting-alpha",
-            )
-        }
-        else -> remember { mutableStateOf(1f) }
-    }
-    Box(
-        modifier = Modifier
-            .size(8.dp)
-            .clip(RoundedCornerShape(percent = 50))
-            .background(baseColor.copy(alpha = alpha)),
-    )
 }
 
 @Composable
@@ -837,88 +743,4 @@ private fun ErrorDialog(message: String, onDismiss: () -> Unit) {
         title = { Text("Couldn't add project") },
         text = { Text(message) },
     )
-}
-
-private fun shouldShowHookBanner(state: RootState): Boolean {
-    if (state.hookBannerDismissed) return false
-    return when (state.hookInstallState) {
-        is HookInstallState.NotInstalled,
-        is HookInstallState.OutdatedVersion,
-        -> true
-        else -> false
-    }
-}
-
-@Composable
-private fun HookInstallBanner(
-    state: HookInstallState,
-    inProgress: Boolean,
-    onInstall: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val title: String
-    val message: String
-    val actionLabel: String
-    when (state) {
-        is HookInstallState.OutdatedVersion -> {
-            title = "Update status hooks"
-            message = "Installed ${state.installedVersion}, current ${state.currentVersion}."
-            actionLabel = "Update"
-        }
-        else -> {
-            title = "Enable status tracking"
-            message = "Installs hooks in ~/.claude/settings.json so the app can show live agent status."
-            actionLabel = "Install"
-        }
-    }
-    Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Bolt,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (inProgress) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                TextButton(onClick = onDismiss, enabled = !inProgress) {
-                    Text("Dismiss")
-                }
-                TextButton(onClick = onInstall, enabled = !inProgress) {
-                    Text(actionLabel)
-                }
-            }
-        }
-    }
 }

@@ -28,10 +28,8 @@ import dev.claudeadmin.app.ui.util.openInDefaultApp
 import dev.claudeadmin.app.ui.util.saveWindowState
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.data.util.CrashReporter
-import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
-import dev.claudeadmin.domain.repository.HookInstallerRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
@@ -86,8 +84,6 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
             gitRepository = koin.get<GitRepository>(),
             setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
             reorderProjects = koin.get<ReorderProjectsUseCase>(),
-            hookInstaller = koin.get<HookInstallerRepository>(),
-            agentStatusRepository = koin.get<AgentStatusRepository>(),
             claudeSessionRepository = koin.get<ClaudeSessionRepository>(),
         )
     }
