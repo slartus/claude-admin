@@ -75,7 +75,11 @@ fun RootScreen(
                     }
                 }
             }
-            StatusBar(terminals = state.terminals, ptyRepo = ptyRepo)
+            StatusBar(
+                terminals = state.terminals,
+                projects = state.projects,
+                ptyRepo = ptyRepo,
+            )
         }
     }
 }

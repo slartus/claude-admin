@@ -16,12 +16,19 @@ data class MemorySnapshot(
 object MemorySampler {
 
     fun sample(terminalPids: Map<TerminalSessionId, Long>): MemorySnapshot {
-        val table = readPsTable() ?: return MemorySnapshot.EMPTY
+        val runtime = Runtime.getRuntime()
+        val appBytes = runtime.totalMemory() - runtime.freeMemory()
+
+        if (terminalPids.isEmpty()) {
+            return MemorySnapshot(appBytes = appBytes, terminalsBytes = 0L, perTerminalBytes = emptyMap())
+        }
+
+        val table = readPsTable() ?: return MemorySnapshot(
+            appBytes = appBytes,
+            terminalsBytes = 0L,
+            perTerminalBytes = emptyMap(),
+        )
         val childrenByParent = table.values.groupBy { it.ppid }
-
-        val selfPid = ProcessHandle.current().pid()
-        val appBytes = subtreeRssBytes(selfPid, table, childrenByParent)
-
         val perTerminal = terminalPids.mapValues { (_, pid) ->
             subtreeRssBytes(pid, table, childrenByParent)
         }
