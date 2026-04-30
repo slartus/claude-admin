@@ -17,7 +17,6 @@ import java.sql.DriverManager
 
 class OpenCodeSessionRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    private val dbPath: File = File(AppDirs.userOpenCodeDir, "opencode.db"),
 ) : AiSessionRepository {
 
     override val provider: AiProvider = AiProvider.OPENCODE
@@ -25,11 +24,34 @@ class OpenCodeSessionRepository(
     private val _sessions = MutableStateFlow<List<AiSession>>(emptyList())
     private val sessions = _sessions.asStateFlow()
 
+    private val possibleDbDirs = listOf(
+        File(AppDirs.userHome, ".local/share/opencode"),
+        File(AppDirs.userHome, ".opencode"),
+        File(AppDirs.userHome, "Library/Application Support/opencode"),
+    )
+
+    private fun findDb(): File? {
+        for (dir in possibleDbDirs) {
+            val db = File(dir, "opencode.db")
+            if (db.exists()) {
+                println("[OpenCode] Found DB at: ${db.absolutePath}")
+                return db
+            }
+        }
+        println("[OpenCode] DB not found. Checked:")
+        possibleDbDirs.forEach { dir ->
+            println("  - ${File(dir, "opencode.db").absolutePath} (exists: ${File(dir, "opencode.db").exists()})")
+        }
+        println("[OpenCode] user.home = ${AppDirs.userHome.absolutePath}")
+        return null
+    }
+
     init {
         scope.launch {
             while (true) {
-                if (dbPath.exists()) {
-                    val current = querySessions()
+                val db = findDb()
+                if (db != null) {
+                    val current = querySessions(db)
                     if (current != _sessions.value) {
                         _sessions.value = current
                     }
@@ -41,11 +63,10 @@ class OpenCodeSessionRepository(
 
     override fun observeAll(): Flow<List<AiSession>> = sessions
 
-    private fun querySessions(): List<AiSession> {
-        if (!dbPath.exists()) return emptyList()
+    private fun querySessions(dbFile: File): List<AiSession> {
         return runCatching {
             val sessions = mutableListOf<AiSession>()
-            DriverManager.getConnection("jdbc:sqlite:${dbPath.absolutePath}").use { conn ->
+            DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}?mode=ro").use { conn ->
                 conn.prepareStatement(
                     """
                     SELECT s.id, s.directory, s.title, s.time_updated,
