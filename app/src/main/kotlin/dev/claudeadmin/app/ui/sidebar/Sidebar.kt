@@ -627,26 +627,14 @@ private fun SavedSessionRow(
             .clickable(onClick = onClick)
             .padding(start = 52.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
     ) {
-        Icon(
-            Icons.Default.History,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
-        )
-        Spacer(Modifier.width(6.dp))
+        ProviderLabel(session.provider)
+        Spacer(Modifier.width(4.dp))
         Text(
             text = session.preview,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
             maxLines = 1,
-        )
-        Spacer(Modifier.width(4.dp))
-        Text(
-            text = session.provider.terminalLabel,
-            style = MaterialTheme.typography.labelSmall,
-            color = providerLabelColor(session.provider),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
         )
         Spacer(Modifier.width(6.dp))
         Text(
@@ -657,13 +645,6 @@ private fun SavedSessionRow(
         )
     }
 }
-
-@Composable
-private fun providerLabelColor(provider: AiProvider) =
-    when (provider) {
-        AiProvider.CLAUDE -> Color(0xFFFFC572)
-        AiProvider.OPENCODE -> Color(0xFFFF6C9E)
-    }
 
 private fun formatRelative(timestampMs: Long): String {
     val diff = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0)
