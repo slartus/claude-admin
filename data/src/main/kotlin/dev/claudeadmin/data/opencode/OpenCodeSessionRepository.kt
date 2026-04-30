@@ -48,18 +48,33 @@ class OpenCodeSessionRepository(
             DriverManager.getConnection("jdbc:sqlite:${dbPath.absolutePath}").use { conn ->
                 conn.prepareStatement(
                     """
-                    SELECT s.id, s.directory, s.title, s.time_updated
+                    SELECT s.id, s.directory, s.title, s.time_updated,
+                           json_extract(p.data, '$.text') AS first_prompt
                     FROM session s
+                    LEFT JOIN message m ON m.session_id = s.id
+                                       AND json_extract(m.data, '$.role') = 'user'
+                    LEFT JOIN part p ON p.message_id = m.id
+                    WHERE p.id = (
+                        SELECT p2.id FROM part p2
+                        JOIN message m2 ON p2.message_id = m2.id
+                        WHERE m2.session_id = s.id
+                          AND json_extract(m2.data, '$.role') = 'user'
+                        ORDER BY m2.time_created ASC, p2.time_created ASC
+                        LIMIT 1
+                    )
                     ORDER BY s.time_updated DESC
                     """.trimIndent()
                 ).use { stmt ->
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
+                            val title = rs.getString("title").orEmpty()
+                            val prompt = rs.getString("first_prompt")
+                            val preview = if (!prompt.isNullOrBlank()) prompt else title
                             sessions.add(
                                 AiSession(
                                     id = rs.getString("id"),
                                     cwd = rs.getString("directory"),
-                                    preview = rs.getString("title"),
+                                    preview = preview,
                                     lastModified = rs.getLong("time_updated"),
                                     provider = AiProvider.OPENCODE,
                                 ),
