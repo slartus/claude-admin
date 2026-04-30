@@ -661,8 +661,8 @@ private fun SavedSessionRow(
 @Composable
 private fun providerLabelColor(provider: AiProvider) =
     when (provider) {
-        AiProvider.CLAUDE -> Color(0xFFC572)
-        AiProvider.OPENCODE -> Color(0xFF6C9E)
+        AiProvider.CLAUDE -> Color(0xFFFFC572)
+        AiProvider.OPENCODE -> Color(0xFFFF6C9E)
     }
 
 private fun formatRelative(timestampMs: Long): String {
