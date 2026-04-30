@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import dev.claudeadmin.app.ui.details.DetailsView
 import dev.claudeadmin.app.ui.details.WelcomeView
 import dev.claudeadmin.app.ui.sidebar.Sidebar
+import dev.claudeadmin.app.ui.sidebar.TerminalProviderDialog
 import dev.claudeadmin.app.ui.terminal.TerminalView
 import dev.claudeadmin.app.ui.util.openInDefaultApp
 import dev.claudeadmin.app.ui.util.revealInFinder
@@ -57,8 +58,6 @@ fun RootScreen(
                     onDismissError = component::dismissAddProjectError,
                     onSetGitRoot = component::setGitRoot,
                     onDismissGitRootPrompt = component::dismissGitRootPrompt,
-                    onOpenTerminalWithProvider = component::openTerminal,
-                    onCancelOpenTerminal = component::cancelOpenTerminal,
                 )
                 Box(
                     modifier = Modifier
@@ -82,5 +81,17 @@ fun RootScreen(
                 ptyRepo = ptyRepo,
             )
         }
+    }
+
+    state.pendingTerminalProvider?.let { projectId ->
+        TerminalProviderDialog(
+            onResult = { provider ->
+                if (provider != null) {
+                    component.openTerminal(projectId, provider)
+                } else {
+                    component.cancelOpenTerminal()
+                }
+            },
+        )
     }
 }

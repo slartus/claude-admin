@@ -82,8 +82,6 @@ fun Sidebar(
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
     onDismissGitRootPrompt: (ProjectId) -> Unit,
-    onOpenTerminalWithProvider: (ProjectId, AiProvider) -> Unit,
-    onCancelOpenTerminal: () -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
@@ -264,18 +262,6 @@ fun Sidebar(
             onResult = { path ->
                 pickerOpen = false
                 if (path != null) onAddProject(path, null)
-            },
-        )
-    }
-
-    state.pendingTerminalProvider?.let { projectId ->
-        TerminalProviderDialog(
-            onResult = { provider ->
-                if (provider != null) {
-                    onOpenTerminalWithProvider(projectId, provider)
-                } else {
-                    onCancelOpenTerminal()
-                }
             },
         )
     }
