@@ -98,7 +98,7 @@ class PtyTerminalRepository : TerminalRepository {
         }
         AiProvider.OPENCODE -> {
             if (resumeSessionId != null) {
-                "${provider.cliCommand} --continue --session $resumeSessionId"
+                "${provider.cliCommand} --session $resumeSessionId"
             } else {
                 provider.cliCommand
             }
