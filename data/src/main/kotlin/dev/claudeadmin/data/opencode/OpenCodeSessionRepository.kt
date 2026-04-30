@@ -87,25 +87,32 @@ class OpenCodeSessionRepository(
                     """.trimIndent()
                 ).use { stmt ->
                     stmt.executeQuery().use { rs ->
+                        val meta = rs.metaData
+                        println("[OpenCode] Query OK, columns: ${(1..meta.columnCount).joinToString { meta.getColumnName(it) }}")
                         while (rs.next()) {
                             val title = rs.getString("title").orEmpty()
                             val prompt = rs.getString("first_prompt")
                             val preview = if (!prompt.isNullOrBlank()) prompt else title
-                            sessions.add(
-                                AiSession(
-                                    id = rs.getString("id"),
-                                    cwd = rs.getString("directory"),
-                                    preview = preview,
-                                    lastModified = rs.getLong("time_updated"),
-                                    provider = AiProvider.OPENCODE,
-                                ),
+                            val session = AiSession(
+                                id = rs.getString("id"),
+                                cwd = rs.getString("directory"),
+                                preview = preview,
+                                lastModified = rs.getLong("time_updated"),
+                                provider = AiProvider.OPENCODE,
                             )
+                            println("[OpenCode] Session: id=${session.id} preview=${session.preview.take(40)}")
+                            sessions.add(session)
                         }
                     }
                 }
             }
+            println("[OpenCode] Total sessions: ${sessions.size}")
             sessions
-        }.getOrNull().orEmpty()
+        }.getOrElse { t ->
+            println("[OpenCode] Query error: ${t.message}")
+            t.printStackTrace()
+            emptyList()
+        }
     }
 
     private companion object {

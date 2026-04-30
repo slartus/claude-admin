@@ -47,6 +47,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg)
             packageName = "ClaudeAdmin"
             packageVersion = "1.0.0"
+            modules("java.sql")
             macOS {
                 iconFile.set(project.file("src/main/resources/icons/icon.icns"))
             }
