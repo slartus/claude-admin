@@ -64,14 +64,16 @@ fun RootScreen(
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.surface),
                 ) {
-                    when (val sel = state.selection) {
-                        null -> WelcomeView()
-                        is Selection.Details -> DetailsView(
-                            state = state.details,
-                            onOpenFile = ::openInDefaultApp,
-                            onRevealInFinder = ::revealInFinder,
-                        )
-                        is Selection.Terminal -> TerminalView(sessionId = sel.terminalId, ptyRepo = ptyRepo)
+                    if (state.pendingTerminalProvider == null) {
+                        when (val sel = state.selection) {
+                            null -> WelcomeView()
+                            is Selection.Details -> DetailsView(
+                                state = state.details,
+                                onOpenFile = ::openInDefaultApp,
+                                onRevealInFinder = ::revealInFinder,
+                            )
+                            is Selection.Terminal -> TerminalView(sessionId = sel.terminalId, ptyRepo = ptyRepo)
+                        }
                     }
                 }
             }
