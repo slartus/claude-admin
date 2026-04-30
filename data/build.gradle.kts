@@ -15,6 +15,8 @@ dependencies {
 
     implementation(libs.slf4j.simple)
 
+    implementation(libs.sqlite.jdbc)
+
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.kotlinx.coroutines.test)
 }

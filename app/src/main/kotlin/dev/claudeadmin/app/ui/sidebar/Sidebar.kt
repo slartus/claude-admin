@@ -32,6 +32,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.ClaudeSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
@@ -66,7 +68,7 @@ import dev.claudeadmin.presentation.root.Selection
 fun Sidebar(
     modifier: Modifier = Modifier,
     state: RootState,
-    onAddProject: (path: String, name: String?) -> Unit,
+    onAddProject: (path: String, provider: AiProvider) -> Unit,
     onSelectProject: (ProjectId) -> Unit,
     onRemoveProject: (ProjectId) -> Unit,
     onReorderProjects: (movingId: ProjectId, targetId: ProjectId) -> Unit,
@@ -88,6 +90,7 @@ fun Sidebar(
     var orphanExpanded by remember { mutableStateOf(false) }
     val lazyState = rememberLazyListState()
     var drag by remember { mutableStateOf<ProjectDragInfo?>(null) }
+    var pendingAdd by remember { mutableStateOf<AddProjectResult?>(null) }
 
     Column(
         modifier = modifier
@@ -162,7 +165,7 @@ fun Sidebar(
                         },
                     )
                     terminals.forEach { session ->
-                        val displayTitle = session.claudeSessionId
+                        val displayTitle = session.aiSessionId
                             ?.let { state.sessionPreviewById[it] }
                             ?: session.title
                         TerminalRow(
@@ -254,11 +257,26 @@ fun Sidebar(
     }
 
     if (pickerOpen) {
-        FolderPickerDialog(
-            onResult = { path ->
+        AddProjectDialog(
+            onResult = { result ->
                 pickerOpen = false
-                if (path != null) onAddProject(path, null)
+                if (result.path != null) {
+                    pendingAdd = result
+                }
             },
+        )
+    }
+
+    pendingAdd?.let { result ->
+        ConfirmDialog(
+            title = "Add project as ${result.provider.displayName}?",
+            message = "\"${result.path}\" will be added as a ${result.provider.displayName} project.",
+            confirmText = "Add",
+            onConfirm = {
+                onAddProject(result.path!!, result.provider)
+                pendingAdd = null
+            },
+            onDismiss = { pendingAdd = null },
         )
     }
 
@@ -357,7 +375,11 @@ private fun ProjectRow(
         ProjectBadge(project.name)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(6.dp))
+                ProviderBadge(project.aiProvider)
+            }
             Text(
                 text = project.path,
                 style = MaterialTheme.typography.bodySmall,
@@ -743,4 +765,27 @@ private fun ErrorDialog(message: String, onDismiss: () -> Unit) {
         title = { Text("Couldn't add project") },
         text = { Text(message) },
     )
+}
+
+@Composable
+private fun ProviderBadge(provider: AiProvider) {
+    val color = when (provider) {
+        AiProvider.CLAUDE -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+        AiProvider.OPENCODE -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+    }
+    val textColor = when (provider) {
+        AiProvider.CLAUDE -> MaterialTheme.colorScheme.primary
+        AiProvider.OPENCODE -> MaterialTheme.colorScheme.tertiary
+    }
+    Surface(
+        color = color,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            text = provider.displayName,
+            style = MaterialTheme.typography.labelSmall,
+            color = textColor,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+        )
+    }
 }

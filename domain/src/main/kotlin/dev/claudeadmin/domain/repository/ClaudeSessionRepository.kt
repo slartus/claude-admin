@@ -1,8 +1,9 @@
 package dev.claudeadmin.domain.repository
 
-import dev.claudeadmin.domain.model.ClaudeSession
-import kotlinx.coroutines.flow.Flow
+import dev.claudeadmin.domain.model.AiProvider
+import dev.claudeadmin.domain.model.AiSession
 
-interface ClaudeSessionRepository {
-    fun observeAll(): Flow<List<ClaudeSession>>
+interface ClaudeSessionRepository : AiSessionRepository {
+    override val provider: AiProvider get() = AiProvider.CLAUDE
+    override fun observeAll(): kotlinx.coroutines.flow.Flow<List<AiSession>>
 }

@@ -1,7 +1,8 @@
 package dev.claudeadmin.data.session
 
 import dev.claudeadmin.data.util.AppDirs
-import dev.claudeadmin.domain.model.ClaudeSession
+import dev.claudeadmin.domain.model.AiProvider
+import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,15 +41,15 @@ class FileClaudeSessionRepository(
 
     private val metaCache = ConcurrentHashMap<String, CachedMeta>()
 
-    private val shared: Flow<List<ClaudeSession>> =
+    private val shared: Flow<List<AiSession>> =
         watchAll()
             .distinctUntilChanged()
             .flowOn(Dispatchers.IO)
             .shareIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000), replay = 1)
 
-    override fun observeAll(): Flow<List<ClaudeSession>> = shared
+    override fun observeAll(): Flow<List<AiSession>> = shared
 
-    private fun watchAll(): Flow<List<ClaudeSession>> = callbackFlow {
+    private fun watchAll(): Flow<List<AiSession>> = callbackFlow {
         trySend(scanAll())
 
         val registered = ConcurrentHashMap.newKeySet<Path>()
@@ -106,11 +107,11 @@ class FileClaudeSessionRepository(
         }
     }
 
-    private fun scanAll(): List<ClaudeSession> {
+    private fun scanAll(): List<AiSession> {
         if (!baseDir.isDirectory) return emptyList()
         val folders = baseDir.listFiles { f -> f.isDirectory }?.toList().orEmpty()
         val alive = hashSetOf<String>()
-        val result = mutableListOf<ClaudeSession>()
+        val result = mutableListOf<AiSession>()
 
         for (folder in folders) {
             val files = folder.listFiles { f -> f.isFile && f.extension == "jsonl" }?.toList().orEmpty()
@@ -126,11 +127,12 @@ class FileClaudeSessionRepository(
                     CachedMeta(mtime, cwd, preview).also { metaCache[file.absolutePath] = it }
                 }
                 result.add(
-                    ClaudeSession(
+                    AiSession(
                         id = file.nameWithoutExtension,
                         cwd = meta.cwd,
                         preview = meta.preview,
                         lastModified = mtime,
+                        provider = AiProvider.CLAUDE,
                     ),
                 )
             }

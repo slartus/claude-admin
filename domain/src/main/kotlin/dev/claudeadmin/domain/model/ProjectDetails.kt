@@ -12,4 +12,8 @@ data class ProjectDetails(
     val skills: List<Skill>,
     val outputStyles: List<OutputStyle>,
     val mcpServers: List<McpServer>,
+    val projectOpenCodeMds: List<OpenCodeMd> = emptyList(),
+    val userOpenCodeMds: List<OpenCodeMd> = emptyList(),
+    val projectOpenCodeSettings: OpenCodeSettings? = null,
+    val userOpenCodeSettings: OpenCodeSettings? = null,
 )

@@ -1,5 +1,6 @@
 package dev.claudeadmin.domain.repository
 
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
@@ -11,12 +12,12 @@ interface TerminalRepository {
     fun observeAll(): Flow<List<TerminalSession>>
     suspend fun open(
         project: Project,
-        title: String = "claude",
+        title: String = "terminal",
         resumeSessionId: String? = null,
     ): TerminalSession
     suspend fun openDetached(
         cwd: String,
-        title: String = "claude",
+        title: String = "terminal",
         resumeSessionId: String? = null,
     ): TerminalSession
     suspend fun close(id: TerminalSessionId)

@@ -2,11 +2,11 @@ package dev.claudeadmin.presentation.root
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
-import dev.claudeadmin.domain.model.ClaudeSession
+import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
-import dev.claudeadmin.domain.repository.ClaudeSessionRepository
+import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
@@ -24,6 +24,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -40,7 +41,7 @@ class RootComponent(
     private val gitRepository: GitRepository,
     private val setProjectGitRoot: SetProjectGitRootUseCase,
     private val reorderProjects: ReorderProjectsUseCase,
-    private val claudeSessionRepository: ClaudeSessionRepository,
+    private val sessionRepositories: List<AiSessionRepository>,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -54,7 +55,7 @@ class RootComponent(
     private data class GitSubscription(val path: String, val job: Job)
 
     @Volatile
-    private var allSessions: List<ClaudeSession> = emptyList()
+    private var allSessions: List<AiSession> = emptyList()
 
     init {
         scope.launch {
@@ -64,18 +65,23 @@ class RootComponent(
             }
         }
         scope.launch { observeTerminals.all().collect { list -> _state.update { it.copy(terminals = list) } } }
+
+        val sessionFlows = sessionRepositories.map { it.observeAll() }
         scope.launch {
-            claudeSessionRepository.observeAll().collect { sessions ->
-                allSessions = sessions
-                applyProjectsAndGrouping(_state.value.projects, sessions)
+            if (sessionFlows.isEmpty()) return@launch
+            combine(sessionFlows) { arrays ->
+                arrays.flatMap { it.toList() }
+            }.collect { sessions ->
+                allSessions = sessions.sortedByDescending { it.lastModified }
+                applyProjectsAndGrouping(_state.value.projects, allSessions)
             }
         }
     }
 
-    private fun applyProjectsAndGrouping(projects: List<Project>, sessions: List<ClaudeSession>) {
+    private fun applyProjectsAndGrouping(projects: List<Project>, sessions: List<AiSession>) {
         val sortedProjects = projects.sortedByDescending { it.path.length }
-        val tracked = HashMap<ProjectId, MutableList<ClaudeSession>>()
-        val orphans = LinkedHashMap<String, MutableList<ClaudeSession>>()
+        val tracked = HashMap<ProjectId, MutableList<AiSession>>()
+        val orphans = LinkedHashMap<String, MutableList<AiSession>>()
         for (session in sessions) {
             val matched = sortedProjects.firstOrNull { project ->
                 session.cwd == project.path || session.cwd.startsWith(project.path + "/")
@@ -134,9 +140,9 @@ class RootComponent(
         _state.update { it.copy(selection = Selection.Terminal(projectId, terminalId)) }
     }
 
-    fun addProject(path: String, name: String? = null) {
+    fun addProject(path: String, name: String? = null, provider: dev.claudeadmin.domain.model.AiProvider = dev.claudeadmin.domain.model.AiProvider.CLAUDE) {
         scope.launch {
-            addProject.invoke(path, name).fold(
+            addProject.invoke(path, name, provider).fold(
                 onSuccess = { project: Project ->
                     _state.update { it.copy(addProjectError = null) }
                     selectProject(project.id)

@@ -1,6 +1,7 @@
 package dev.claudeadmin.data.terminal
 
 import com.jediterm.terminal.TtyConnector
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
@@ -15,9 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-class PtyTerminalRepository(
-    private val command: String = PtyFactory.DEFAULT_COMMAND,
-) : TerminalRepository {
+class PtyTerminalRepository : TerminalRepository {
 
     private data class Entry(val session: TerminalSession, val backend: PtyBackend)
 
@@ -39,26 +38,35 @@ class PtyTerminalRepository(
         project: Project,
         title: String,
         resumeSessionId: String?,
-    ): TerminalSession = spawn(projectId = project.id, cwd = project.path, title = title, resumeSessionId = resumeSessionId)
+    ): TerminalSession = spawn(
+        projectId = project.id,
+        cwd = project.path,
+        title = title,
+        resumeSessionId = resumeSessionId,
+        provider = project.aiProvider,
+    )
 
     override suspend fun openDetached(
         cwd: String,
         title: String,
         resumeSessionId: String?,
-    ): TerminalSession = spawn(projectId = null, cwd = cwd, title = title, resumeSessionId = resumeSessionId)
+    ): TerminalSession = spawn(
+        projectId = null,
+        cwd = cwd,
+        title = title,
+        resumeSessionId = resumeSessionId,
+        provider = AiProvider.OPENCODE,
+    )
 
     private suspend fun spawn(
         projectId: ProjectId?,
         cwd: String,
         title: String,
         resumeSessionId: String?,
+        provider: AiProvider,
     ): TerminalSession = withContext(Dispatchers.IO) {
-        val claudeSessionId = resumeSessionId ?: UUID.randomUUID().toString()
-        val fullCommand = if (resumeSessionId != null) {
-            "$command --resume $resumeSessionId"
-        } else {
-            "$command --session-id=$claudeSessionId"
-        }
+        val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
+        val fullCommand = buildCommand(provider, cwd, resumeSessionId, aiSessionId)
         val backend = PtyFactory.spawn(cwd, fullCommand)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
@@ -66,12 +74,36 @@ class PtyTerminalRepository(
             cwd = cwd,
             title = title,
             createdAt = System.currentTimeMillis(),
-            claudeSessionId = claudeSessionId,
+            aiSessionId = aiSessionId,
+            aiProvider = provider,
         )
         mutex.withLock {
             entries.value = entries.value + (session.id to Entry(session, backend))
         }
         session
+    }
+
+    private fun buildCommand(
+        provider: AiProvider,
+        cwd: String,
+        resumeSessionId: String?,
+        aiSessionId: String,
+    ): String = when (provider) {
+        AiProvider.CLAUDE -> {
+            if (resumeSessionId != null) {
+                "${provider.cliCommand} --resume $resumeSessionId"
+            } else {
+                "${provider.cliCommand} --session-id=$aiSessionId"
+            }
+        }
+        AiProvider.OPENCODE -> {
+            val base = "${provider.cliCommand} \"$cwd\""
+            if (resumeSessionId != null) {
+                "$base --session $resumeSessionId"
+            } else {
+                base
+            }
+        }
     }
 
     override suspend fun close(id: TerminalSessionId) {

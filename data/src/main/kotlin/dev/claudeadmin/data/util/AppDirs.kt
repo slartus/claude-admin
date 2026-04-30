@@ -12,4 +12,10 @@ object AppDirs {
     val userHome: File get() = File(System.getProperty("user.home"))
 
     val userClaudeDir: File get() = File(userHome, ".claude")
+
+    val userOpenCodeDir: File get() = File(userHome, ".local/share/opencode")
+
+    val userOpenCodeConfigDir: File get() = File(userHome, ".config/opencode")
+
+    val userOpenCodeAltDir: File get() = File(userHome, ".opencode")
 }

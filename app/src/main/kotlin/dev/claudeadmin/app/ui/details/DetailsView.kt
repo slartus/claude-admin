@@ -46,6 +46,8 @@ import dev.claudeadmin.domain.model.Command
 import dev.claudeadmin.domain.model.CommandScope
 import dev.claudeadmin.domain.model.McpServer
 import dev.claudeadmin.domain.model.McpServerScope
+import dev.claudeadmin.domain.model.OpenCodeMd
+import dev.claudeadmin.domain.model.OpenCodeSettings
 import dev.claudeadmin.domain.model.OutputStyle
 import dev.claudeadmin.domain.model.OutputStyleScope
 import dev.claudeadmin.domain.model.ProjectDetails
@@ -199,12 +201,14 @@ private enum class BadgeKind { PROJECT, PROJECT_LOCAL, USER, NEUTRAL }
 
 private fun buildProjectSections(d: ProjectDetails): List<Section> = listOfNotNull(
     claudeMdSection(d.projectClaudeMd, "CLAUDE.md", BadgeKind.PROJECT),
+    openCodeMdSections(d.projectOpenCodeMds, BadgeKind.PROJECT),
     settingsSection(
         listOfNotNull(
             d.projectSettings?.let { it to (".claude/settings.json" to BadgeKind.PROJECT) },
             d.projectSettingsLocal?.let { it to (".claude/settings.local.json" to BadgeKind.PROJECT_LOCAL) },
         ),
     ),
+    openCodeSettingsSection(d.projectOpenCodeSettings, BadgeKind.PROJECT),
     agentsSection(d.agents.filter { it.scope == AgentScope.PROJECT }),
     commandsSection(d.commands.filter { it.scope == CommandScope.PROJECT }),
     skillsSection(d.skills.filter { it.scope == SkillScope.PROJECT }),
@@ -218,11 +222,13 @@ private fun buildProjectSections(d: ProjectDetails): List<Section> = listOfNotNu
 
 private fun buildGlobalSections(d: ProjectDetails): List<Section> = listOfNotNull(
     claudeMdSection(d.userClaudeMd, "~/.claude/CLAUDE.md", BadgeKind.USER),
+    openCodeMdSections(d.userOpenCodeMds, BadgeKind.USER),
     settingsSection(
         listOfNotNull(
             d.userSettings?.let { it to ("~/.claude/settings.json" to BadgeKind.USER) },
         ),
     ),
+    openCodeSettingsSection(d.userOpenCodeSettings, BadgeKind.USER),
     agentsSection(d.agents.filter { it.scope == AgentScope.USER }),
     commandsSection(d.commands.filter { it.scope == CommandScope.USER }),
     skillsSection(d.skills.filter { it.scope == SkillScope.USER }),
@@ -241,6 +247,40 @@ private fun claudeMdSection(claudeMd: ClaudeMd?, title: String, badge: BadgeKind
         filePath = claudeMd.path,
     )
     return Section(title = "Rules", items = listOf(item))
+}
+
+private fun openCodeMdSections(mds: List<OpenCodeMd>, badge: BadgeKind): Section? {
+    if (mds.isEmpty()) return null
+    return Section(
+        title = "OpenCode Rules",
+        items = mds.map { md ->
+            DetailItem(
+                key = "opencode-md:" + md.path,
+                title = md.name,
+                badges = listOf(Badge(badge.label(), badge)),
+                meta = if (md.imports.isEmpty()) emptyList() else listOf("imports: " + md.imports.joinToString(", ")),
+                body = md.content,
+                filePath = md.path,
+            )
+        },
+    )
+}
+
+private fun openCodeSettingsSection(settings: OpenCodeSettings?, badge: BadgeKind): Section? {
+    if (settings == null) return null
+    return Section(
+        title = "OpenCode Settings",
+        items = listOf(
+            DetailItem(
+                key = "opencode-settings:" + settings.path,
+                title = settings.path.substringAfterLast('/'),
+                titleMonospace = true,
+                badges = listOf(Badge(badge.label(), badge)),
+                body = settings.content,
+                filePath = settings.path,
+            ),
+        ),
+    )
 }
 
 private fun settingsSection(entries: List<Pair<ClaudeSettings, Pair<String, BadgeKind>>>): Section? {

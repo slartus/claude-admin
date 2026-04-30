@@ -1,6 +1,6 @@
 package dev.claudeadmin.presentation.root
 
-import dev.claudeadmin.domain.model.ClaudeSession
+import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectDetails
@@ -16,8 +16,8 @@ data class RootState(
     val addProjectError: String? = null,
     val gitByProject: Map<ProjectId, GitStatus?> = emptyMap(),
     val gitRootPrompts: List<ProjectId> = emptyList(),
-    val savedSessionsByProject: Map<ProjectId, List<ClaudeSession>> = emptyMap(),
-    val orphanSessionsByCwd: Map<String, List<ClaudeSession>> = emptyMap(),
+    val savedSessionsByProject: Map<ProjectId, List<AiSession>> = emptyMap(),
+    val orphanSessionsByCwd: Map<String, List<AiSession>> = emptyMap(),
     val sessionPreviewById: Map<String, String> = emptyMap(),
 ) {
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
@@ -28,10 +28,10 @@ data class RootState(
     val detachedTerminalBySessionId: Map<String, TerminalSession>
         get() = terminals.asSequence()
             .filter { it.projectId == null }
-            .mapNotNull { t -> t.claudeSessionId?.let { it to t } }
+            .mapNotNull { t -> t.aiSessionId?.let { it to t } }
             .toMap()
 
-    val visibleSavedSessionsByProject: Map<ProjectId, List<ClaudeSession>>
+    val visibleSavedSessionsByProject: Map<ProjectId, List<AiSession>>
         get() {
             val active = activeTrackedSessionIds()
             return savedSessionsByProject.mapValues { (_, list) ->
@@ -42,7 +42,7 @@ data class RootState(
     private fun activeTrackedSessionIds(): Set<String> =
         terminals.asSequence()
             .filter { it.projectId != null }
-            .mapNotNullTo(hashSetOf()) { it.claudeSessionId }
+            .mapNotNullTo(hashSetOf()) { it.aiSessionId }
 }
 
 sealed interface Selection {

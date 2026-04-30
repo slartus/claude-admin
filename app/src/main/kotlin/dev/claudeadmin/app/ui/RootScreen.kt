@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.app.ui.details.DetailsView
 import dev.claudeadmin.app.ui.details.WelcomeView
 import dev.claudeadmin.app.ui.sidebar.Sidebar
@@ -43,7 +44,7 @@ fun RootScreen(
                 Sidebar(
                     modifier = Modifier.width(300.dp),
                     state = state,
-                    onAddProject = component::addProject,
+                    onAddProject = { path, provider -> component.addProject(path, provider = provider) },
                     onSelectProject = component::selectProject,
                     onRemoveProject = component::removeProject,
                     onReorderProjects = component::reorderProjects,

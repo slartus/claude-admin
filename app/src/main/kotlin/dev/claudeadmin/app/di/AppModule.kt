@@ -5,6 +5,9 @@ import dev.claudeadmin.data.claudemd.FileClaudeMdRepository
 import dev.claudeadmin.data.command.FileCommandRepository
 import dev.claudeadmin.data.git.FileGitRepository
 import dev.claudeadmin.data.mcp.FileMcpServerRepository
+import dev.claudeadmin.data.opencode.FileOpenCodeMdRepository
+import dev.claudeadmin.data.opencode.FileOpenCodeSettingsRepository
+import dev.claudeadmin.data.opencode.OpenCodeSessionRepository
 import dev.claudeadmin.data.outputstyle.FileOutputStyleRepository
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.session.FileClaudeSessionRepository
@@ -12,12 +15,15 @@ import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.skill.FileSkillRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentRepository
+import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.repository.McpServerRepository
+import dev.claudeadmin.domain.repository.OpenCodeMdRepository
+import dev.claudeadmin.domain.repository.OpenCodeSettingsRepository
 import dev.claudeadmin.domain.repository.OutputStyleRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.SkillRepository
@@ -54,9 +60,26 @@ val appModule = module {
     single<GitRepository> {
         FileGitRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
     }
+
     single<ClaudeSessionRepository> {
         FileClaudeSessionRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
     }
+    single<AiSessionRepository>(qualifier = org.koin.core.qualifier.named("Claude")) {
+        get<ClaudeSessionRepository>()
+    }
+    single<AiSessionRepository>(qualifier = org.koin.core.qualifier.named("OpenCode")) {
+        OpenCodeSessionRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
+    }
+    single<List<AiSessionRepository>> {
+        listOf(
+            get<AiSessionRepository>(qualifier = org.koin.core.qualifier.named("Claude")),
+            get<AiSessionRepository>(qualifier = org.koin.core.qualifier.named("OpenCode")),
+        )
+    }
+
+    single<OpenCodeMdRepository> { FileOpenCodeMdRepository() }
+    single<OpenCodeSettingsRepository> { FileOpenCodeSettingsRepository() }
+
     single<PtyTerminalRepository> { PtyTerminalRepository() }
     single<TerminalRepository> { get<PtyTerminalRepository>() }
 
@@ -64,7 +87,12 @@ val appModule = module {
     factory { ObserveTerminalsUseCase(get()) }
     factory { AddProjectUseCase(get()) }
     factory { RemoveProjectUseCase(get(), get()) }
-    factory { LoadProjectDetailsUseCase(get(), get(), get(), get(), get(), get(), get(), get()) }
+    factory {
+        LoadProjectDetailsUseCase(
+            get(), get(), get(), get(), get(), get(), get(), get(),
+            get<OpenCodeMdRepository>(), get<OpenCodeSettingsRepository>(),
+        )
+    }
     factory { OpenTerminalUseCase(get(), get()) }
     factory { CloseTerminalUseCase(get()) }
     factory { SetProjectGitRootUseCase(get()) }

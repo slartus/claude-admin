@@ -10,6 +10,7 @@ koin = "4.0.0"
 pty4j = "0.13.12"
 jediterm = "3.64"
 slf4j = "2.0.16"
+sqliteJdbc = "3.45.1.0"
 junit = "5.11.3"
 
 [libraries]
@@ -30,6 +31,8 @@ jediterm-core = { module = "org.jetbrains.jediterm:jediterm-core", version.ref =
 jediterm-ui = { module = "org.jetbrains.jediterm:jediterm-ui", version.ref = "jediterm" }
 
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

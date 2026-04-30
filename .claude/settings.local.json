@@ -24,7 +24,15 @@
       "Bash(python3:*)",
       "Bash(echo:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew :app:packageDistributionForCurrentOS --console=plain)"
+      "Bash(JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' ./gradlew :app:packageDistributionForCurrentOS --console=plain)",
+      "Bash(/Users/artemslinkin/StudioProjects/claude-admin/gradlew -p /Users/artemslinkin/StudioProjects/claude-admin :app:dependencies --configuration runtimeClasspath --console=plain)",
+      "Bash(/usr/bin/jar tf *)",
+      "Bash(curl -s 'https://repo1.maven.org/maven2/org/jetbrains/jediterm/jediterm-pty/')",
+      "Bash(curl -s 'https://repo1.maven.org/maven2/org/jetbrains/jediterm/jediterm-core/')",
+      "Bash(curl -s 'https://repo1.maven.org/maven2/org/jetbrains/jediterm/')",
+      "Bash(curl -s 'https://search.maven.org/solrsearch/select?q=g:org.jetbrains.jediterm&rows=50&wt=json')",
+      "Bash(/Users/artemslinkin/StudioProjects/claude-admin/gradlew -p /Users/artemslinkin/StudioProjects/claude-admin :app:packageDistributionForCurrentOS --console=plain)",
+      "Bash(/Users/artemslinkin/StudioProjects/claude-admin/gradlew -p /Users/artemslinkin/StudioProjects/claude-admin :app:createDistributable --console=plain)"
     ],
     "defaultMode": "bypassPermissions"
   }

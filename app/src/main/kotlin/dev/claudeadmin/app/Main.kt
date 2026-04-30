@@ -28,7 +28,7 @@ import dev.claudeadmin.app.ui.util.openInDefaultApp
 import dev.claudeadmin.app.ui.util.saveWindowState
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.data.util.CrashReporter
-import dev.claudeadmin.domain.repository.ClaudeSessionRepository
+import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
@@ -70,6 +70,7 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
     val rootContext = remember { DefaultComponentContext(lifecycle = lifecycle) }
 
     val ptyRepo = remember { koin.get<PtyTerminalRepository>() }
+    val sessionRepos = remember { koin.getAll<AiSessionRepository>() }
 
     val root = remember {
         RootComponent(
@@ -84,7 +85,7 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
             gitRepository = koin.get<GitRepository>(),
             setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
             reorderProjects = koin.get<ReorderProjectsUseCase>(),
-            claudeSessionRepository = koin.get<ClaudeSessionRepository>(),
+            sessionRepositories = sessionRepos,
         )
     }
 
