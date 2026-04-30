@@ -2,6 +2,7 @@ package dev.claudeadmin.presentation.root
 
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
@@ -140,9 +141,9 @@ class RootComponent(
         _state.update { it.copy(selection = Selection.Terminal(projectId, terminalId)) }
     }
 
-    fun addProject(path: String, name: String? = null, provider: dev.claudeadmin.domain.model.AiProvider = dev.claudeadmin.domain.model.AiProvider.CLAUDE) {
+    fun addProject(path: String, name: String? = null) {
         scope.launch {
-            addProject.invoke(path, name, provider).fold(
+            addProject.invoke(path, name).fold(
                 onSuccess = { project: Project ->
                     _state.update { it.copy(addProjectError = null) }
                     selectProject(project.id)
@@ -194,17 +195,25 @@ class RootComponent(
         }
     }
 
-    fun openTerminal(id: ProjectId) {
+    fun requestOpenTerminal(id: ProjectId) {
+        _state.update { it.copy(pendingTerminalProvider = id) }
+    }
+
+    fun openTerminal(id: ProjectId, provider: AiProvider) {
         scope.launch {
-            openTerminal.invoke(id).onSuccess { session ->
-                _state.update { it.copy(selection = Selection.Terminal(id, session.id)) }
+            openTerminal.invoke(id, provider = provider).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(id, session.id), pendingTerminalProvider = null) }
             }
         }
     }
 
-    fun resumeClaudeSession(projectId: ProjectId, sessionId: String) {
+    fun cancelOpenTerminal() {
+        _state.update { it.copy(pendingTerminalProvider = null) }
+    }
+
+    fun resumeClaudeSession(projectId: ProjectId, sessionId: String, provider: AiProvider) {
         scope.launch {
-            openTerminal.invoke(projectId, resumeSessionId = sessionId).onSuccess { session ->
+            openTerminal.invoke(projectId, resumeSessionId = sessionId, provider = provider).onSuccess { session ->
                 _state.update { it.copy(selection = Selection.Terminal(projectId, session.id)) }
             }
         }

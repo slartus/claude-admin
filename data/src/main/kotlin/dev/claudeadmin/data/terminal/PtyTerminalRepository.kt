@@ -38,12 +38,13 @@ class PtyTerminalRepository : TerminalRepository {
         project: Project,
         title: String,
         resumeSessionId: String?,
+        provider: AiProvider,
     ): TerminalSession = spawn(
         projectId = project.id,
         cwd = project.path,
         title = title,
         resumeSessionId = resumeSessionId,
-        provider = project.aiProvider,
+        provider = provider,
     )
 
     override suspend fun openDetached(
@@ -66,7 +67,7 @@ class PtyTerminalRepository : TerminalRepository {
         provider: AiProvider,
     ): TerminalSession = withContext(Dispatchers.IO) {
         val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
-        val fullCommand = buildCommand(provider, cwd, resumeSessionId, aiSessionId)
+        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId)
         val backend = PtyFactory.spawn(cwd, fullCommand)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
@@ -85,7 +86,6 @@ class PtyTerminalRepository : TerminalRepository {
 
     private fun buildCommand(
         provider: AiProvider,
-        cwd: String,
         resumeSessionId: String?,
         aiSessionId: String,
     ): String = when (provider) {
@@ -97,11 +97,10 @@ class PtyTerminalRepository : TerminalRepository {
             }
         }
         AiProvider.OPENCODE -> {
-            val base = "${provider.cliCommand} \"$cwd\""
             if (resumeSessionId != null) {
-                "$base --session $resumeSessionId"
+                "${provider.cliCommand} --continue --session $resumeSessionId"
             } else {
-                base
+                provider.cliCommand
             }
         }
     }

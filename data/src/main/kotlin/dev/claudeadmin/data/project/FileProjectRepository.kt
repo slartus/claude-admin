@@ -1,7 +1,6 @@
 package dev.claudeadmin.data.project
 
 import dev.claudeadmin.data.util.AppDirs
-import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.repository.ProjectRepository
@@ -34,16 +33,11 @@ class FileProjectRepository(
 
     override fun observeAll(): StateFlow<List<Project>> = state.asStateFlow()
 
-    override suspend fun add(path: String, name: String?, aiProvider: AiProvider): Project {
+    override suspend fun add(path: String, name: String?): Project {
         val finalName = name?.takeIf { it.isNotBlank() } ?: File(path).name
         mutex.withLock {
             state.value.firstOrNull { it.path == path }?.let { return it }
-            val project = Project(
-                id = ProjectId(UUID.randomUUID().toString()),
-                name = finalName,
-                path = path,
-                aiProvider = aiProvider,
-            )
+            val project = Project(id = ProjectId(UUID.randomUUID().toString()), name = finalName, path = path)
             state.value = state.value + project
             writeToDisk(state.value)
             return project
@@ -84,40 +78,16 @@ class FileProjectRepository(
         }
     }
 
-    suspend fun setProvider(id: ProjectId, provider: AiProvider) {
-        mutex.withLock {
-            val updated = state.value.map { p ->
-                if (p.id == id) p.copy(aiProvider = provider) else p
-            }
-            if (updated == state.value) return@withLock
-            state.value = updated
-            writeToDisk(state.value)
-        }
-    }
-
     private fun readFromDisk(): List<Project> {
         if (!file.exists()) return emptyList()
         return runCatching {
             val dtos = json.decodeFromString(listSerializer, file.readText())
-            dtos.map {
-                Project(
-                    ProjectId(it.id),
-                    it.name,
-                    it.path,
-                    it.gitRoot,
-                    parseProvider(it.aiProvider),
-                )
-            }
+            dtos.map { Project(ProjectId(it.id), it.name, it.path, it.gitRoot) }
         }.getOrElse { emptyList() }
     }
 
-    private fun parseProvider(raw: String?): AiProvider = runCatching {
-        if (raw.isNullOrBlank()) return@runCatching AiProvider.CLAUDE
-        AiProvider.valueOf(raw)
-    }.getOrDefault(AiProvider.CLAUDE)
-
     private suspend fun writeToDisk(items: List<Project>) = withContext(Dispatchers.IO) {
-        val dtos = items.map { ProjectDto(it.id.value, it.name, it.path, it.gitRoot, it.aiProvider.name) }
+        val dtos = items.map { ProjectDto(it.id.value, it.name, it.path, it.gitRoot) }
         file.parentFile?.mkdirs()
         file.writeText(json.encodeToString(listSerializer, dtos))
     }
@@ -128,7 +98,6 @@ class FileProjectRepository(
         val name: String,
         val path: String,
         val gitRoot: String? = null,
-        val aiProvider: String? = null,
     )
 
     private companion object {

@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.app.ui.details.DetailsView
 import dev.claudeadmin.app.ui.details.WelcomeView
 import dev.claudeadmin.app.ui.sidebar.Sidebar
@@ -24,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import dev.claudeadmin.app.ui.terminal.TerminalWidgetCache
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.presentation.root.RootComponent
 import dev.claudeadmin.presentation.root.Selection
 
@@ -44,11 +44,11 @@ fun RootScreen(
                 Sidebar(
                     modifier = Modifier.width(300.dp),
                     state = state,
-                    onAddProject = { path, provider -> component.addProject(path, provider = provider) },
+                    onAddProject = component::addProject,
                     onSelectProject = component::selectProject,
                     onRemoveProject = component::removeProject,
                     onReorderProjects = component::reorderProjects,
-                    onOpenTerminal = component::openTerminal,
+                    onRequestOpenTerminal = component::requestOpenTerminal,
                     onSelectTerminal = component::selectTerminal,
                     onCloseTerminal = component::closeTerminal,
                     onResumeSession = component::resumeClaudeSession,
@@ -57,6 +57,8 @@ fun RootScreen(
                     onDismissError = component::dismissAddProjectError,
                     onSetGitRoot = component::setGitRoot,
                     onDismissGitRootPrompt = component::dismissGitRootPrompt,
+                    onOpenTerminalWithProvider = component::openTerminal,
+                    onCancelOpenTerminal = component::cancelOpenTerminal,
                 )
                 Box(
                     modifier = Modifier

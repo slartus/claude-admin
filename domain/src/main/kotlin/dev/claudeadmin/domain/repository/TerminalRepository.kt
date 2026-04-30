@@ -14,6 +14,7 @@ interface TerminalRepository {
         project: Project,
         title: String = "terminal",
         resumeSessionId: String? = null,
+        provider: AiProvider = AiProvider.CLAUDE,
     ): TerminalSession
     suspend fun openDetached(
         cwd: String,

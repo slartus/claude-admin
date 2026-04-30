@@ -1,5 +1,6 @@
 package dev.claudeadmin.presentation.root
 
+import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
@@ -19,6 +20,7 @@ data class RootState(
     val savedSessionsByProject: Map<ProjectId, List<AiSession>> = emptyMap(),
     val orphanSessionsByCwd: Map<String, List<AiSession>> = emptyMap(),
     val sessionPreviewById: Map<String, String> = emptyMap(),
+    val pendingTerminalProvider: ProjectId? = null,
 ) {
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
         get() = terminals.asSequence()

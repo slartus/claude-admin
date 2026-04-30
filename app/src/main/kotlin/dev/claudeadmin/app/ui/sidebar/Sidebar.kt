@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
 import dev.claudeadmin.domain.model.AiProvider
-import dev.claudeadmin.domain.model.ClaudeSession
+import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
@@ -68,19 +69,21 @@ import dev.claudeadmin.presentation.root.Selection
 fun Sidebar(
     modifier: Modifier = Modifier,
     state: RootState,
-    onAddProject: (path: String, provider: AiProvider) -> Unit,
+    onAddProject: (path: String, name: String?) -> Unit,
     onSelectProject: (ProjectId) -> Unit,
     onRemoveProject: (ProjectId) -> Unit,
     onReorderProjects: (movingId: ProjectId, targetId: ProjectId) -> Unit,
-    onOpenTerminal: (ProjectId) -> Unit,
+    onRequestOpenTerminal: (ProjectId) -> Unit,
     onSelectTerminal: (ProjectId?, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
-    onResumeSession: (ProjectId, String) -> Unit,
+    onResumeSession: (ProjectId, String, AiProvider) -> Unit,
     onResumeOrphanSession: (cwd: String, sessionId: String) -> Unit,
     onAddProjectFromOrphan: (cwd: String) -> Unit,
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
     onDismissGitRootPrompt: (ProjectId) -> Unit,
+    onOpenTerminalWithProvider: (ProjectId, AiProvider) -> Unit,
+    onCancelOpenTerminal: () -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
@@ -90,7 +93,6 @@ fun Sidebar(
     var orphanExpanded by remember { mutableStateOf(false) }
     val lazyState = rememberLazyListState()
     var drag by remember { mutableStateOf<ProjectDragInfo?>(null) }
-    var pendingAdd by remember { mutableStateOf<AddProjectResult?>(null) }
 
     Column(
         modifier = modifier
@@ -140,7 +142,7 @@ fun Sidebar(
                         dragging = isDragging,
                         onClick = { onSelectProject(project.id) },
                         onRemove = { pendingRemove = project },
-                        onOpenTerminal = { onOpenTerminal(project.id) },
+                        onRequestOpenTerminal = { onRequestOpenTerminal(project.id) },
                         dragHandleModifier = Modifier.pointerInput(project.id) {
                             detectDragGestures(
                                 onDragStart = {
@@ -170,6 +172,7 @@ fun Sidebar(
                             ?: session.title
                         TerminalRow(
                             title = displayTitle,
+                            provider = session.aiProvider,
                             selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
                             onClick = { onSelectTerminal(project.id, session.id) },
                             onClose = { pendingClose = session },
@@ -187,7 +190,7 @@ fun Sidebar(
                             savedSessions.forEach { session ->
                                 SavedSessionRow(
                                     session = session,
-                                    onClick = { onResumeSession(project.id, session.id) },
+                                    onClick = { onResumeSession(project.id, session.id, session.provider) },
                                 )
                             }
                         }
@@ -200,7 +203,7 @@ fun Sidebar(
             val detachedBySession = state.detachedTerminalBySessionId
             if (orphanTotal > 0) {
                 item(key = "orphan-divider") {
-                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 }
                 item(key = "orphan-header") {
                     OrphanGroupHeader(
@@ -257,26 +260,23 @@ fun Sidebar(
     }
 
     if (pickerOpen) {
-        AddProjectDialog(
-            onResult = { result ->
+        FolderPickerDialog(
+            onResult = { path ->
                 pickerOpen = false
-                if (result.path != null) {
-                    pendingAdd = result
-                }
+                if (path != null) onAddProject(path, null)
             },
         )
     }
 
-    pendingAdd?.let { result ->
-        ConfirmDialog(
-            title = "Add project as ${result.provider.displayName}?",
-            message = "\"${result.path}\" will be added as a ${result.provider.displayName} project.",
-            confirmText = "Add",
-            onConfirm = {
-                onAddProject(result.path!!, result.provider)
-                pendingAdd = null
+    state.pendingTerminalProvider?.let { projectId ->
+        TerminalProviderDialog(
+            onResult = { provider ->
+                if (provider != null) {
+                    onOpenTerminalWithProvider(projectId, provider)
+                } else {
+                    onCancelOpenTerminal()
+                }
             },
-            onDismiss = { pendingAdd = null },
         )
     }
 
@@ -354,7 +354,7 @@ private fun ProjectRow(
     dragging: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
-    onOpenTerminal: () -> Unit,
+    onRequestOpenTerminal: () -> Unit,
     dragHandleModifier: Modifier,
 ) {
     val bg = when {
@@ -375,11 +375,7 @@ private fun ProjectRow(
         ProjectBadge(project.name)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.width(6.dp))
-                ProviderBadge(project.aiProvider)
-            }
+            Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text(
                 text = project.path,
                 style = MaterialTheme.typography.bodySmall,
@@ -390,7 +386,7 @@ private fun ProjectRow(
             )
             if (git != null) GitBranchLabel(git)
         }
-        IconButton(onClick = onOpenTerminal) {
+        IconButton(onClick = onRequestOpenTerminal) {
             Icon(Icons.Default.Terminal, contentDescription = "Open terminal", modifier = Modifier.size(18.dp))
         }
         IconButton(onClick = onRemove) {
@@ -432,6 +428,7 @@ private fun GitBranchLabel(git: GitStatus) {
 @Composable
 private fun TerminalRow(
     title: String,
+    provider: AiProvider,
     selected: Boolean,
     onClick: () -> Unit,
     onClose: () -> Unit,
@@ -445,8 +442,8 @@ private fun TerminalRow(
             .clickable(onClick = onClick)
             .padding(start = 36.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
     ) {
-        Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(6.dp))
+        ProviderLabel(provider)
+        Spacer(Modifier.width(4.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.bodySmall,
@@ -456,6 +453,29 @@ private fun TerminalRow(
         IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
         }
+    }
+}
+
+@Composable
+private fun ProviderLabel(provider: AiProvider) {
+    Surface(
+        color = when (provider) {
+            AiProvider.CLAUDE -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+            AiProvider.OPENCODE -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+        },
+        shape = MaterialTheme.shapes.extraSmall,
+    ) {
+        Text(
+            text = provider.terminalLabel,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                color = when (provider) {
+                    AiProvider.CLAUDE -> MaterialTheme.colorScheme.primary
+                    AiProvider.OPENCODE -> MaterialTheme.colorScheme.tertiary
+                },
+            ),
+            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp),
+        )
     }
 }
 
@@ -521,7 +541,7 @@ private fun OrphanCwdRow(
 
 @Composable
 private fun OrphanSessionRow(
-    session: ClaudeSession,
+    session: AiSession,
     running: Boolean,
     selected: Boolean,
     displayText: String,
@@ -611,7 +631,7 @@ private fun SessionsGroupHeader(
 
 @Composable
 private fun SavedSessionRow(
-    session: ClaudeSession,
+    session: AiSession,
     onClick: () -> Unit,
 ) {
     Row(
@@ -737,7 +757,7 @@ private sealed interface OrphanRow {
     data class Cwd(val cwd: String, val count: Int) : OrphanRow {
         override val key: String get() = "orphan-cwd:$cwd"
     }
-    data class Session(val cwd: String, val session: ClaudeSession) : OrphanRow {
+    data class Session(val cwd: String, val session: AiSession) : OrphanRow {
         override val key: String get() = "orphan-session:$cwd:${session.id}"
     }
 }
@@ -765,27 +785,4 @@ private fun ErrorDialog(message: String, onDismiss: () -> Unit) {
         title = { Text("Couldn't add project") },
         text = { Text(message) },
     )
-}
-
-@Composable
-private fun ProviderBadge(provider: AiProvider) {
-    val color = when (provider) {
-        AiProvider.CLAUDE -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-        AiProvider.OPENCODE -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
-    }
-    val textColor = when (provider) {
-        AiProvider.CLAUDE -> MaterialTheme.colorScheme.primary
-        AiProvider.OPENCODE -> MaterialTheme.colorScheme.tertiary
-    }
-    Surface(
-        color = color,
-        shape = MaterialTheme.shapes.small,
-    ) {
-        Text(
-            text = provider.displayName,
-            style = MaterialTheme.typography.labelSmall,
-            color = textColor,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-        )
-    }
 }
