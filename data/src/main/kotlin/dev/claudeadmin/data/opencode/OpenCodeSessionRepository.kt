@@ -50,7 +50,6 @@ class OpenCodeSessionRepository(
                     """
                     SELECT s.id, s.directory, s.title, s.time_updated
                     FROM session s
-                    WHERE s.time_archived IS NULL
                     ORDER BY s.time_updated DESC
                     """.trimIndent()
                 ).use { stmt ->

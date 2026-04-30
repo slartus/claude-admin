@@ -641,6 +641,13 @@ private fun SavedSessionRow(
             modifier = Modifier.weight(1f),
             maxLines = 1,
         )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = session.provider.terminalLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = providerLabelColor(session.provider),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+        )
         Spacer(Modifier.width(6.dp))
         Text(
             text = formatRelative(session.lastModified),
@@ -650,6 +657,13 @@ private fun SavedSessionRow(
         )
     }
 }
+
+@Composable
+private fun providerLabelColor(provider: AiProvider) =
+    when (provider) {
+        AiProvider.CLAUDE -> Color(0xFFC572)
+        AiProvider.OPENCODE -> Color(0xFF6C9E)
+    }
 
 private fun formatRelative(timestampMs: Long): String {
     val diff = (System.currentTimeMillis() - timestampMs).coerceAtLeast(0)
