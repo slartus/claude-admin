@@ -1,6 +1,7 @@
 package dev.claudeadmin.data.project
 
 import dev.claudeadmin.data.util.AppDirs
+import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.repository.ProjectRepository
@@ -78,16 +79,48 @@ class FileProjectRepository(
         }
     }
 
+    override suspend fun setGroup(id: ProjectId, groupId: GroupId?) {
+        mutex.withLock {
+            val updated = state.value.map { p ->
+                if (p.id == id) p.copy(groupId = groupId) else p
+            }
+            if (updated == state.value) return@withLock
+            state.value = updated
+            writeToDisk(state.value)
+        }
+    }
+
+    override suspend fun clearGroup(groupId: GroupId) {
+        mutex.withLock {
+            val updated = state.value.map { p ->
+                if (p.groupId == groupId) p.copy(groupId = null) else p
+            }
+            if (updated == state.value) return@withLock
+            state.value = updated
+            writeToDisk(state.value)
+        }
+    }
+
     private fun readFromDisk(): List<Project> {
         if (!file.exists()) return emptyList()
         return runCatching {
             val dtos = json.decodeFromString(listSerializer, file.readText())
-            dtos.map { Project(ProjectId(it.id), it.name, it.path, it.gitRoot) }
+            dtos.map {
+                Project(
+                    id = ProjectId(it.id),
+                    name = it.name,
+                    path = it.path,
+                    gitRoot = it.gitRoot,
+                    groupId = it.groupId?.let(::GroupId),
+                )
+            }
         }.getOrElse { emptyList() }
     }
 
     private suspend fun writeToDisk(items: List<Project>) = withContext(Dispatchers.IO) {
-        val dtos = items.map { ProjectDto(it.id.value, it.name, it.path, it.gitRoot) }
+        val dtos = items.map {
+            ProjectDto(it.id.value, it.name, it.path, it.gitRoot, it.groupId?.value)
+        }
         file.parentFile?.mkdirs()
         file.writeText(json.encodeToString(listSerializer, dtos))
     }
@@ -98,6 +131,7 @@ class FileProjectRepository(
         val name: String,
         val path: String,
         val gitRoot: String? = null,
+        val groupId: String? = null,
     )
 
     private companion object {

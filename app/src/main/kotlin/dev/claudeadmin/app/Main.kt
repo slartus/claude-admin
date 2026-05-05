@@ -32,13 +32,20 @@ import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
+import dev.claudeadmin.domain.usecase.CreateGroupUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
+import dev.claudeadmin.domain.usecase.MoveGroupUseCase
+import dev.claudeadmin.domain.usecase.MoveProjectToGroupUseCase
+import dev.claudeadmin.domain.usecase.ObserveProjectGroupsUseCase
 import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
+import dev.claudeadmin.domain.usecase.RemoveGroupUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
+import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import dev.claudeadmin.presentation.root.RootComponent
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -86,6 +93,13 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
             setProjectGitRoot = koin.get<SetProjectGitRootUseCase>(),
             reorderProjects = koin.get<ReorderProjectsUseCase>(),
             sessionRepositories = sessionRepos,
+            observeGroupsUseCase = koin.get<ObserveProjectGroupsUseCase>(),
+            createGroupUseCase = koin.get<CreateGroupUseCase>(),
+            renameGroupUseCase = koin.get<RenameGroupUseCase>(),
+            moveGroupUseCase = koin.get<MoveGroupUseCase>(),
+            removeGroupUseCase = koin.get<RemoveGroupUseCase>(),
+            toggleGroupCollapsedUseCase = koin.get<ToggleGroupCollapsedUseCase>(),
+            moveProjectToGroupUseCase = koin.get<MoveProjectToGroupUseCase>(),
         )
     }
 

@@ -58,6 +58,12 @@ fun RootScreen(
                     onDismissError = component::dismissAddProjectError,
                     onSetGitRoot = component::setGitRoot,
                     onDismissGitRootPrompt = component::dismissGitRootPrompt,
+                    onCreateGroup = component::createGroup,
+                    onRenameGroup = component::renameGroup,
+                    onMoveGroup = component::moveGroup,
+                    onRemoveGroup = component::removeGroup,
+                    onToggleGroupCollapsed = component::toggleGroupCollapsed,
+                    onMoveProjectToGroup = component::moveProjectToGroup,
                 )
                 Box(
                     modifier = Modifier

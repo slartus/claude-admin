@@ -5,6 +5,7 @@ data class Project(
     val name: String,
     val path: String,
     val gitRoot: String? = null,
+    val groupId: GroupId? = null,
 )
 
 @JvmInline

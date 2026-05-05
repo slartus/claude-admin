@@ -24,11 +24,17 @@ import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DragIndicator
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,13 +63,17 @@ import kotlin.math.abs
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
+import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
+import dev.claudeadmin.domain.model.ProjectGroup
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
 import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.presentation.root.RootState
 import dev.claudeadmin.presentation.root.Selection
+import dev.claudeadmin.presentation.root.SidebarRow
+import dev.claudeadmin.presentation.root.buildSidebarRows
 
 @Composable
 fun Sidebar(
@@ -82,13 +92,23 @@ fun Sidebar(
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
     onDismissGitRootPrompt: (ProjectId) -> Unit,
+    onCreateGroup: (name: String, parentId: GroupId?) -> Unit,
+    onRenameGroup: (GroupId, String) -> Unit,
+    onMoveGroup: (GroupId, GroupId?) -> Unit,
+    onRemoveGroup: (GroupId) -> Unit,
+    onToggleGroupCollapsed: (GroupId, Boolean) -> Unit,
+    onMoveProjectToGroup: (ProjectId, GroupId?) -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
     var pendingRemove by remember { mutableStateOf<Project?>(null) }
+    var pendingGroupRemove by remember { mutableStateOf<ProjectGroup?>(null) }
     var gitRootPickerFor by remember { mutableStateOf<ProjectId?>(null) }
     val sessionsExpanded = remember { mutableStateMapOf<ProjectId, Boolean>() }
     var orphanExpanded by remember { mutableStateOf(false) }
+    var createGroupParent by remember { mutableStateOf<GroupParentChoice?>(null) }
+    var renamingGroup by remember { mutableStateOf<ProjectGroup?>(null) }
+    var movePicker by remember { mutableStateOf<MoveTarget?>(null) }
     val lazyState = rememberLazyListState()
     var drag by remember { mutableStateOf<ProjectDragInfo?>(null) }
 
@@ -109,87 +129,118 @@ fun Sidebar(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = { createGroupParent = GroupParentChoice(null) }) {
+                Icon(Icons.Default.CreateNewFolder, contentDescription = "New group")
+            }
             IconButton(onClick = { pickerOpen = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add project")
             }
         }
         Divider()
 
+        val rows = remember(state.groups, state.projects) {
+            buildSidebarRows(state.groups, state.projects)
+        }
         LazyColumn(
             state = lazyState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(vertical = 4.dp),
         ) {
-            items(state.projects, key = { it.id.value }) { project ->
-                val isDragging by remember(project.id) {
-                    derivedStateOf { drag?.id == project.id }
-                }
-                Column(
-                    modifier = Modifier
-                        .zIndex(if (isDragging) 1f else 0f)
-                        .graphicsLayer {
-                            translationY = drag?.takeIf { it.id == project.id }?.offsetY ?: 0f
+            items(rows, key = { it.key }) { row ->
+                when (row) {
+                    is SidebarRow.GroupHeader -> GroupHeaderRow(
+                        header = row,
+                        onToggleCollapsed = {
+                            onToggleGroupCollapsed(row.group.id, !row.group.collapsed)
                         },
-                ) {
-                    val terminals = state.terminalsByProject[project.id].orEmpty()
-                    ProjectRow(
-                        project = project,
-                        git = state.gitByProject[project.id],
-                        selected = state.selection?.projectId == project.id &&
-                            state.selection is Selection.Details,
-                        dragging = isDragging,
-                        onClick = { onSelectProject(project.id) },
-                        onRemove = { pendingRemove = project },
-                        onRequestOpenTerminal = { onRequestOpenTerminal(project.id) },
-                        dragHandleModifier = Modifier.pointerInput(project.id) {
-                            detectDragGestures(
-                                onDragStart = {
-                                    drag = ProjectDragInfo(project.id, 0f)
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    drag = drag?.let { it.copy(offsetY = it.offsetY + amount.y) }
-                                },
-                                onDragEnd = {
-                                    val d = drag
-                                    if (d != null) {
-                                        val targetId = computeTargetId(d, lazyState, state.projects)
-                                        if (targetId != null && targetId != d.id) {
-                                            onReorderProjects(d.id, targetId)
-                                        }
-                                    }
-                                    drag = null
-                                },
-                                onDragCancel = { drag = null },
-                            )
+                        onRename = { renamingGroup = row.group },
+                        onCreateSubgroup = { createGroupParent = GroupParentChoice(row.group.id) },
+                        onMove = {
+                            movePicker = MoveTarget.Group(row.group.id, currentParent = row.group.parentId)
                         },
+                        onDelete = { pendingGroupRemove = row.group },
                     )
-                    terminals.forEach { session ->
-                        val displayTitle = session.aiSessionId
-                            ?.let { state.sessionPreviewById[it] }
-                            ?: session.title
-                        TerminalRow(
-                            title = displayTitle,
-                            provider = session.aiProvider,
-                            selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
-                            onClick = { onSelectTerminal(project.id, session.id) },
-                            onClose = { pendingClose = session },
-                        )
-                    }
-                    val savedSessions = state.visibleSavedSessionsByProject[project.id].orEmpty()
-                    if (savedSessions.isNotEmpty()) {
-                        val expanded = sessionsExpanded[project.id] == true
-                        SessionsGroupHeader(
-                            count = savedSessions.size,
-                            expanded = expanded,
-                            onToggle = { sessionsExpanded[project.id] = !expanded },
-                        )
-                        if (expanded) {
-                            savedSessions.forEach { session ->
-                                SavedSessionRow(
-                                    session = session,
-                                    onClick = { onResumeSession(project.id, session.id, session.provider) },
+
+                    is SidebarRow.ProjectItem -> {
+                        val project = row.project
+                        val isDragging by remember(project.id) {
+                            derivedStateOf { drag?.id == project.id }
+                        }
+                        Column(
+                            modifier = Modifier
+                                .zIndex(if (isDragging) 1f else 0f)
+                                .graphicsLayer {
+                                    translationY = drag?.takeIf { it.id == project.id }?.offsetY ?: 0f
+                                },
+                        ) {
+                            val terminals = state.terminalsByProject[project.id].orEmpty()
+                            ProjectRow(
+                                project = project,
+                                depth = row.depth,
+                                git = state.gitByProject[project.id],
+                                selected = state.selection?.projectId == project.id &&
+                                    state.selection is Selection.Details,
+                                dragging = isDragging,
+                                onClick = { onSelectProject(project.id) },
+                                onRemove = { pendingRemove = project },
+                                onRequestOpenTerminal = { onRequestOpenTerminal(project.id) },
+                                onMove = {
+                                    movePicker = MoveTarget.Project(project.id, currentParent = project.groupId)
+                                },
+                                dragHandleModifier = Modifier.pointerInput(project.id) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            drag = ProjectDragInfo(project.id, 0f)
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            drag = drag?.let { it.copy(offsetY = it.offsetY + amount.y) }
+                                        },
+                                        onDragEnd = {
+                                            val d = drag
+                                            if (d != null) {
+                                                val targetId = computeTargetId(d, lazyState, state.projects)
+                                                if (targetId != null && targetId != d.id) {
+                                                    onReorderProjects(d.id, targetId)
+                                                }
+                                            }
+                                            drag = null
+                                        },
+                                        onDragCancel = { drag = null },
+                                    )
+                                },
+                            )
+                            terminals.forEach { session ->
+                                val displayTitle = session.aiSessionId
+                                    ?.let { state.sessionPreviewById[it] }
+                                    ?: session.title
+                                TerminalRow(
+                                    title = displayTitle,
+                                    provider = session.aiProvider,
+                                    depth = row.depth,
+                                    selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
+                                    onClick = { onSelectTerminal(project.id, session.id) },
+                                    onClose = { pendingClose = session },
                                 )
+                            }
+                            val savedSessions = state.visibleSavedSessionsByProject[project.id].orEmpty()
+                            if (savedSessions.isNotEmpty()) {
+                                val expanded = sessionsExpanded[project.id] == true
+                                SessionsGroupHeader(
+                                    count = savedSessions.size,
+                                    expanded = expanded,
+                                    depth = row.depth,
+                                    onToggle = { sessionsExpanded[project.id] = !expanded },
+                                )
+                                if (expanded) {
+                                    savedSessions.forEach { session ->
+                                        SavedSessionRow(
+                                            session = session,
+                                            depth = row.depth,
+                                            onClick = { onResumeSession(project.id, session.id, session.provider) },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -292,6 +343,67 @@ fun Sidebar(
         )
     }
 
+    pendingGroupRemove?.let { group ->
+        val childCount = state.groups.count { it.parentId == group.id }
+        val projectCount = state.projects.count { it.groupId == group.id }
+        val msg = buildString {
+            append("\"${group.name}\" will be removed.")
+            if (projectCount > 0) append(" $projectCount project${if (projectCount == 1) "" else "s"} will move out of this group.")
+            if (childCount > 0) append(" $childCount subgroup${if (childCount == 1) "" else "s"} will move up.")
+        }
+        ConfirmDialog(
+            title = "Delete group?",
+            message = msg,
+            confirmText = "Delete",
+            onConfirm = {
+                onRemoveGroup(group.id)
+                pendingGroupRemove = null
+            },
+            onDismiss = { pendingGroupRemove = null },
+        )
+    }
+
+    createGroupParent?.let { choice ->
+        GroupNameDialog(
+            title = if (choice.parentId == null) "New group" else "New subgroup",
+            confirmText = "Create",
+            initialName = "",
+            onConfirm = { name ->
+                onCreateGroup(name, choice.parentId)
+                createGroupParent = null
+            },
+            onDismiss = { createGroupParent = null },
+        )
+    }
+
+    renamingGroup?.let { group ->
+        GroupNameDialog(
+            title = "Rename group",
+            confirmText = "Save",
+            initialName = group.name,
+            onConfirm = { name ->
+                onRenameGroup(group.id, name)
+                renamingGroup = null
+            },
+            onDismiss = { renamingGroup = null },
+        )
+    }
+
+    movePicker?.let { target ->
+        MoveToGroupDialog(
+            target = target,
+            allGroups = state.groups,
+            onConfirm = { newParent ->
+                when (target) {
+                    is MoveTarget.Project -> onMoveProjectToGroup(target.projectId, newParent)
+                    is MoveTarget.Group -> onMoveGroup(target.groupId, newParent)
+                }
+                movePicker = null
+            },
+            onDismiss = { movePicker = null },
+        )
+    }
+
     val nextPromptId = state.gitRootPrompts.firstOrNull()
     val nextPromptProject = nextPromptId?.let { id -> state.projects.firstOrNull { it.id == id } }
     if (nextPromptProject != null && gitRootPickerFor == null) {
@@ -309,6 +421,83 @@ fun Sidebar(
                 if (path != null) onSetGitRoot(id, path) else onDismissGitRootPrompt(id)
             },
         )
+    }
+}
+
+@Composable
+private fun GroupHeaderRow(
+    header: SidebarRow.GroupHeader,
+    onToggleCollapsed: () -> Unit,
+    onRename: () -> Unit,
+    onCreateSubgroup: () -> Unit,
+    onMove: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggleCollapsed)
+            .padding(start = (4 + header.depth * 16).dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+    ) {
+        Icon(
+            imageVector = if (header.selfCollapsed) Icons.Default.ChevronRight else Icons.Default.ExpandMore,
+            contentDescription = if (header.selfCollapsed) "Expand" else "Collapse",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(2.dp))
+        Icon(
+            imageVector = Icons.Default.Folder,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = header.group.name,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (header.projectCount > 0) {
+            Text(
+                text = header.projectCount.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 6.dp),
+            )
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Group menu", modifier = Modifier.size(16.dp))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Rename") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = { menuOpen = false; onRename() },
+                )
+                DropdownMenuItem(
+                    text = { Text("New subgroup") },
+                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                    onClick = { menuOpen = false; onCreateSubgroup() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Move to…") },
+                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                    onClick = { menuOpen = false; onMove() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                    onClick = { menuOpen = false; onDelete() },
+                )
+            }
+        }
     }
 }
 
@@ -335,14 +524,17 @@ private fun GitRootPromptDialog(
 @Composable
 private fun ProjectRow(
     project: Project,
+    depth: Int,
     git: GitStatus?,
     selected: Boolean,
     dragging: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     onRequestOpenTerminal: () -> Unit,
+    onMove: () -> Unit,
     dragHandleModifier: Modifier,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     val bg = when {
         dragging -> MaterialTheme.colorScheme.secondaryContainer
         selected -> MaterialTheme.colorScheme.secondaryContainer
@@ -354,7 +546,12 @@ private fun ProjectRow(
             .fillMaxWidth()
             .background(bg)
             .clickable(onClick = onClick)
-            .padding(start = 4.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+            .padding(
+                start = (4 + depth * 16).dp,
+                end = 8.dp,
+                top = 6.dp,
+                bottom = 6.dp,
+            ),
     ) {
         DragHandle(dragHandleModifier = dragHandleModifier)
         Spacer(Modifier.width(4.dp))
@@ -375,8 +572,22 @@ private fun ProjectRow(
         IconButton(onClick = onRequestOpenTerminal) {
             Icon(Icons.Default.Terminal, contentDescription = "Open terminal", modifier = Modifier.size(18.dp))
         }
-        IconButton(onClick = onRemove) {
-            Icon(Icons.Default.Close, contentDescription = "Remove project", modifier = Modifier.size(18.dp))
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Project menu", modifier = Modifier.size(16.dp))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Move to group…") },
+                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                    onClick = { menuOpen = false; onMove() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Remove project") },
+                    leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                    onClick = { menuOpen = false; onRemove() },
+                )
+            }
         }
     }
 }
@@ -415,6 +626,7 @@ private fun GitBranchLabel(git: GitStatus) {
 private fun TerminalRow(
     title: String,
     provider: AiProvider,
+    depth: Int,
     selected: Boolean,
     onClick: () -> Unit,
     onClose: () -> Unit,
@@ -426,7 +638,7 @@ private fun TerminalRow(
             .fillMaxWidth()
             .background(bg)
             .clickable(onClick = onClick)
-            .padding(start = 36.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+            .padding(start = (36 + depth * 16).dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
     ) {
         ProviderLabel(provider)
         Spacer(Modifier.width(4.dp))
@@ -584,6 +796,7 @@ private fun OrphanSessionRow(
 private fun SessionsGroupHeader(
     count: Int,
     expanded: Boolean,
+    depth: Int,
     onToggle: () -> Unit,
 ) {
     Row(
@@ -591,7 +804,7 @@ private fun SessionsGroupHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(start = 20.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+            .padding(start = (20 + depth * 16).dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
     ) {
         Icon(
             imageVector = if (expanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
@@ -618,6 +831,7 @@ private fun SessionsGroupHeader(
 @Composable
 private fun SavedSessionRow(
     session: AiSession,
+    depth: Int,
     onClick: () -> Unit,
 ) {
     Row(
@@ -625,7 +839,7 @@ private fun SavedSessionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 52.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+            .padding(start = (52 + depth * 16).dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
     ) {
         ProviderLabel(session.provider)
         Spacer(Modifier.width(4.dp))
@@ -685,6 +899,13 @@ private data class ProjectDragInfo(
     val offsetY: Float,
 )
 
+private data class GroupParentChoice(val parentId: GroupId?)
+
+internal sealed interface MoveTarget {
+    data class Project(val projectId: ProjectId, val currentParent: GroupId?) : MoveTarget
+    data class Group(val groupId: GroupId, val currentParent: GroupId?) : MoveTarget
+}
+
 @Composable
 private fun DragHandle(dragHandleModifier: Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -713,13 +934,18 @@ private fun computeTargetId(
     lazyState: LazyListState,
     projects: List<Project>,
 ): ProjectId? {
-    val idsByKey = HashMap<String, ProjectId>(projects.size)
-    projects.forEach { p -> idsByKey[p.id.value] = p.id }
+    val draggedProject = projects.firstOrNull { it.id == drag.id } ?: return null
+    val sameGroupKeys = HashMap<String, ProjectId>()
+    projects.forEach { p ->
+        if (p.groupId == draggedProject.groupId) {
+            sameGroupKeys["project:${p.id.value}"] = p.id
+        }
+    }
     val projectItems = lazyState.layoutInfo.visibleItemsInfo.filter { info ->
         val k = info.key
-        k is String && idsByKey.containsKey(k)
+        k is String && sameGroupKeys.containsKey(k)
     }
-    val dragged = projectItems.firstOrNull { it.key == drag.id.value } ?: return null
+    val dragged = projectItems.firstOrNull { it.key == "project:${drag.id.value}" } ?: return null
     val draggedCenter = dragged.offset + dragged.size / 2f + drag.offsetY
     val first = projectItems.first()
     val last = projectItems.last()
@@ -730,7 +956,7 @@ private fun computeTargetId(
             abs((info.offset + info.size / 2f) - draggedCenter)
         }?.key as? String ?: return null
     }
-    return idsByKey[targetKey]
+    return sameGroupKeys[targetKey]
 }
 
 private sealed interface OrphanRow {

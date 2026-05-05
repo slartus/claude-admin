@@ -9,6 +9,7 @@ import dev.claudeadmin.data.opencode.FileOpenCodeMdRepository
 import dev.claudeadmin.data.opencode.FileOpenCodeSettingsRepository
 import dev.claudeadmin.data.opencode.OpenCodeSessionRepository
 import dev.claudeadmin.data.outputstyle.FileOutputStyleRepository
+import dev.claudeadmin.data.project.FileProjectGroupRepository
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.session.FileClaudeSessionRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
@@ -25,18 +26,26 @@ import dev.claudeadmin.domain.repository.McpServerRepository
 import dev.claudeadmin.domain.repository.OpenCodeMdRepository
 import dev.claudeadmin.domain.repository.OpenCodeSettingsRepository
 import dev.claudeadmin.domain.repository.OutputStyleRepository
+import dev.claudeadmin.domain.repository.ProjectGroupRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.SkillRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
+import dev.claudeadmin.domain.usecase.CreateGroupUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
+import dev.claudeadmin.domain.usecase.MoveGroupUseCase
+import dev.claudeadmin.domain.usecase.MoveProjectToGroupUseCase
+import dev.claudeadmin.domain.usecase.ObserveProjectGroupsUseCase
 import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
+import dev.claudeadmin.domain.usecase.RemoveGroupUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
+import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +58,9 @@ val appModule = module {
 
     single<ProjectRepository> {
         FileProjectRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
+    }
+    single<ProjectGroupRepository> {
+        FileProjectGroupRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
     }
     single<ClaudeMdRepository> { FileClaudeMdRepository() }
     single<ClaudeSettingsRepository> { FileClaudeSettingsRepository() }
@@ -97,4 +109,11 @@ val appModule = module {
     factory { CloseTerminalUseCase(get()) }
     factory { SetProjectGitRootUseCase(get()) }
     factory { ReorderProjectsUseCase(get()) }
+    factory { ObserveProjectGroupsUseCase(get()) }
+    factory { CreateGroupUseCase(get()) }
+    factory { RenameGroupUseCase(get()) }
+    factory { MoveGroupUseCase(get()) }
+    factory { RemoveGroupUseCase(get(), get()) }
+    factory { ToggleGroupCollapsedUseCase(get()) }
+    factory { MoveProjectToGroupUseCase(get()) }
 }

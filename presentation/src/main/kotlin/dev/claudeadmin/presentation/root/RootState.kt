@@ -5,12 +5,14 @@ import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectDetails
+import dev.claudeadmin.domain.model.ProjectGroup
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
 
 data class RootState(
     val projects: List<Project> = emptyList(),
+    val groups: List<ProjectGroup> = emptyList(),
     val terminals: List<TerminalSession> = emptyList(),
     val selection: Selection? = null,
     val details: DetailsState = DetailsState.Empty,
@@ -22,6 +24,7 @@ data class RootState(
     val sessionPreviewById: Map<String, String> = emptyMap(),
     val pendingTerminalProvider: ProjectId? = null,
 ) {
+
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
         get() = terminals.asSequence()
             .mapNotNull { t -> t.projectId?.let { it to t } }

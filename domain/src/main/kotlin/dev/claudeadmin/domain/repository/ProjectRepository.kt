@@ -1,5 +1,6 @@
 package dev.claudeadmin.domain.repository
 
+import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import kotlinx.coroutines.flow.Flow
@@ -11,4 +12,6 @@ interface ProjectRepository {
     suspend fun get(id: ProjectId): Project?
     suspend fun setGitRoot(id: ProjectId, gitRoot: String?)
     suspend fun reorder(orderedIds: List<ProjectId>)
+    suspend fun setGroup(id: ProjectId, groupId: GroupId?)
+    suspend fun clearGroup(groupId: GroupId)
 }

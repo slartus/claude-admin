@@ -4,6 +4,7 @@ import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
+import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
@@ -11,13 +12,20 @@ import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
 import dev.claudeadmin.domain.usecase.CloseTerminalUseCase
+import dev.claudeadmin.domain.usecase.CreateGroupUseCase
 import dev.claudeadmin.domain.usecase.LoadProjectDetailsUseCase
+import dev.claudeadmin.domain.usecase.MoveGroupUseCase
+import dev.claudeadmin.domain.usecase.MoveProjectToGroupUseCase
+import dev.claudeadmin.domain.usecase.ObserveProjectGroupsUseCase
 import dev.claudeadmin.domain.usecase.ObserveProjectsUseCase
 import dev.claudeadmin.domain.usecase.ObserveTerminalsUseCase
 import dev.claudeadmin.domain.usecase.OpenTerminalUseCase
+import dev.claudeadmin.domain.usecase.RemoveGroupUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
+import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
+import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,6 +51,13 @@ class RootComponent(
     private val setProjectGitRoot: SetProjectGitRootUseCase,
     private val reorderProjects: ReorderProjectsUseCase,
     private val sessionRepositories: List<AiSessionRepository>,
+    private val observeGroupsUseCase: ObserveProjectGroupsUseCase,
+    private val createGroupUseCase: CreateGroupUseCase,
+    private val renameGroupUseCase: RenameGroupUseCase,
+    private val moveGroupUseCase: MoveGroupUseCase,
+    private val removeGroupUseCase: RemoveGroupUseCase,
+    private val toggleGroupCollapsedUseCase: ToggleGroupCollapsedUseCase,
+    private val moveProjectToGroupUseCase: MoveProjectToGroupUseCase,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -66,6 +81,7 @@ class RootComponent(
             }
         }
         scope.launch { observeTerminals.all().collect { list -> _state.update { it.copy(terminals = list) } } }
+        scope.launch { observeGroupsUseCase().collect { list -> _state.update { it.copy(groups = list) } } }
 
         val sessionFlows = sessionRepositories.map { it.observeAll() }
         scope.launch {
@@ -177,13 +193,26 @@ class RootComponent(
     fun reorderProjects(movingId: ProjectId, targetId: ProjectId) {
         if (movingId == targetId) return
         val current = _state.value.projects
-        val fromIdx = current.indexOfFirst { it.id == movingId }
-        val targetIdx = current.indexOfFirst { it.id == targetId }
-        if (fromIdx < 0 || targetIdx < 0) return
-        val ids = current.map { it.id }.toMutableList()
-        ids.removeAt(fromIdx)
-        ids.add(targetIdx, movingId)
-        scope.launch { reorderProjects.invoke(ids) }
+        val moving = current.firstOrNull { it.id == movingId } ?: return
+        val target = current.firstOrNull { it.id == targetId } ?: return
+        if (moving.groupId != target.groupId) return
+
+        val siblings = current.filter { it.groupId == moving.groupId }
+        val siblingFromIdx = siblings.indexOfFirst { it.id == movingId }
+        val siblingTargetIdx = siblings.indexOfFirst { it.id == targetId }
+        if (siblingFromIdx < 0 || siblingTargetIdx < 0) return
+
+        val newSiblingOrder = siblings.toMutableList()
+        val moved = newSiblingOrder.removeAt(siblingFromIdx)
+        newSiblingOrder.add(siblingTargetIdx, moved)
+
+        // Re-stitch: keep foreign-group projects on their absolute positions,
+        // replace sibling slots with the new sibling order in sequence.
+        val siblingQueue = ArrayDeque(newSiblingOrder)
+        val finalOrder = current.map { p ->
+            if (p.groupId == moving.groupId) siblingQueue.removeFirst().id else p.id
+        }
+        scope.launch { reorderProjects.invoke(finalOrder) }
     }
 
     fun removeProject(id: ProjectId) {
@@ -246,6 +275,30 @@ class RootComponent(
 
     fun dismissAddProjectError() {
         _state.update { it.copy(addProjectError = null) }
+    }
+
+    fun createGroup(name: String, parentId: GroupId? = null) {
+        scope.launch { createGroupUseCase(name, parentId) }
+    }
+
+    fun renameGroup(id: GroupId, name: String) {
+        scope.launch { renameGroupUseCase(id, name) }
+    }
+
+    fun moveGroup(id: GroupId, newParentId: GroupId?) {
+        scope.launch { moveGroupUseCase(id, newParentId) }
+    }
+
+    fun removeGroup(id: GroupId) {
+        scope.launch { removeGroupUseCase(id) }
+    }
+
+    fun toggleGroupCollapsed(id: GroupId, collapsed: Boolean) {
+        scope.launch { toggleGroupCollapsedUseCase(id, collapsed) }
+    }
+
+    fun moveProjectToGroup(projectId: ProjectId, groupId: GroupId?) {
+        scope.launch { moveProjectToGroupUseCase(projectId, groupId) }
     }
 
     private companion object {

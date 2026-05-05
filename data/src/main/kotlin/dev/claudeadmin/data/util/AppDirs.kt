@@ -9,6 +9,8 @@ object AppDirs {
 
     val projectsFile: File get() = File(root, "projects.json")
 
+    val projectGroupsFile: File get() = File(root, "project-groups.json")
+
     val userHome: File get() = File(System.getProperty("user.home"))
 
     val userClaudeDir: File get() = File(userHome, ".claude")
