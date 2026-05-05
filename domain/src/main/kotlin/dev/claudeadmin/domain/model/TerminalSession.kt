@@ -7,7 +7,7 @@ data class TerminalSession(
     val title: String,
     val createdAt: Long,
     val aiSessionId: String? = null,
-    val aiProvider: AiProvider = AiProvider.CLAUDE,
+    val aiProvider: AiProvider,
 )
 
 @JvmInline

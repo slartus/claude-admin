@@ -211,7 +211,7 @@ class RootComponent(
         _state.update { it.copy(pendingTerminalProvider = null) }
     }
 
-    fun resumeClaudeSession(projectId: ProjectId, sessionId: String, provider: AiProvider) {
+    fun resumeAiSession(projectId: ProjectId, sessionId: String, provider: AiProvider) {
         scope.launch {
             openTerminal.invoke(projectId, resumeSessionId = sessionId, provider = provider).onSuccess { session ->
                 _state.update { it.copy(selection = Selection.Terminal(projectId, session.id)) }
@@ -219,9 +219,9 @@ class RootComponent(
         }
     }
 
-    fun resumeOrphanSession(cwd: String, sessionId: String) {
+    fun resumeOrphanSession(cwd: String, sessionId: String, provider: AiProvider) {
         scope.launch {
-            openTerminal.openDetached(cwd, resumeSessionId = sessionId).onSuccess { session ->
+            openTerminal.openDetached(cwd, resumeSessionId = sessionId, provider = provider).onSuccess { session ->
                 _state.update { it.copy(selection = Selection.Terminal(null, session.id)) }
             }
         }

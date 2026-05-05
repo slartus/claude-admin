@@ -5,7 +5,7 @@ data class AiSession(
     val cwd: String,
     val preview: String,
     val lastModified: Long,
-    val provider: AiProvider = AiProvider.CLAUDE,
+    val provider: AiProvider,
 )
 
 @Deprecated("Use AiSession instead", ReplaceWith("AiSession"))

@@ -51,12 +51,13 @@ class PtyTerminalRepository : TerminalRepository {
         cwd: String,
         title: String,
         resumeSessionId: String?,
+        provider: AiProvider,
     ): TerminalSession = spawn(
         projectId = null,
         cwd = cwd,
         title = title,
         resumeSessionId = resumeSessionId,
-        provider = AiProvider.OPENCODE,
+        provider = provider,
     )
 
     private suspend fun spawn(

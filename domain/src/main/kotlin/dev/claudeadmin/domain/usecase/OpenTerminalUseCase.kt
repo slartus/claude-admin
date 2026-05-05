@@ -14,7 +14,7 @@ class OpenTerminalUseCase(
         projectId: ProjectId,
         title: String = "terminal",
         resumeSessionId: String? = null,
-        provider: AiProvider = AiProvider.CLAUDE,
+        provider: AiProvider,
     ): Result<TerminalSession> {
         val project = projects.get(projectId)
             ?: return Result.failure(IllegalStateException("Project $projectId not found"))
@@ -25,5 +25,6 @@ class OpenTerminalUseCase(
         cwd: String,
         title: String = "terminal",
         resumeSessionId: String? = null,
-    ): Result<TerminalSession> = runCatching { terminals.openDetached(cwd, title, resumeSessionId) }
+        provider: AiProvider,
+    ): Result<TerminalSession> = runCatching { terminals.openDetached(cwd, title, resumeSessionId, provider) }
 }

@@ -52,7 +52,7 @@ fun RootScreen(
                     onRequestOpenTerminal = component::requestOpenTerminal,
                     onSelectTerminal = component::selectTerminal,
                     onCloseTerminal = component::closeTerminal,
-                    onResumeSession = component::resumeClaudeSession,
+                    onResumeSession = component::resumeAiSession,
                     onResumeOrphanSession = component::resumeOrphanSession,
                     onAddProjectFromOrphan = component::addProjectFromOrphan,
                     onDismissError = component::dismissAddProjectError,

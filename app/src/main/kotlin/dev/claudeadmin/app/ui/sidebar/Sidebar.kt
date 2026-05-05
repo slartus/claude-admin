@@ -77,7 +77,7 @@ fun Sidebar(
     onSelectTerminal: (ProjectId?, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
     onResumeSession: (ProjectId, String, AiProvider) -> Unit,
-    onResumeOrphanSession: (cwd: String, sessionId: String) -> Unit,
+    onResumeOrphanSession: (cwd: String, sessionId: String, provider: AiProvider) -> Unit,
     onAddProjectFromOrphan: (cwd: String) -> Unit,
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
@@ -240,7 +240,7 @@ fun Sidebar(
                                         if (runningTerminal != null) {
                                             onSelectTerminal(null, runningTerminal.id)
                                         } else {
-                                            onResumeOrphanSession(row.cwd, row.session.id)
+                                            onResumeOrphanSession(row.cwd, row.session.id, row.session.provider)
                                         }
                                     },
                                     onClose = runningTerminal?.let { term -> { pendingClose = term } },
