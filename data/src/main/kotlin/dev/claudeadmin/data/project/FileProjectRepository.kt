@@ -22,27 +22,39 @@ import java.util.UUID
 
 class FileProjectRepository(
     private val file: File = AppDirs.projectsFile,
-    scope: CoroutineScope,
+    private val iconCache: ProjectIconCache,
+    private val scope: CoroutineScope,
 ) : ProjectRepository {
 
     private val mutex = Mutex()
     private val state = MutableStateFlow<List<Project>>(emptyList())
 
     init {
-        scope.launch(Dispatchers.IO) { state.value = readFromDisk() }
+        scope.launch(Dispatchers.IO) {
+            state.value = readFromDisk()
+            ensureIconsForExisting()
+        }
     }
 
     override fun observeAll(): StateFlow<List<Project>> = state.asStateFlow()
 
     override suspend fun add(path: String, name: String?): Project {
         val finalName = name?.takeIf { it.isNotBlank() } ?: File(path).name
-        mutex.withLock {
-            state.value.firstOrNull { it.path == path }?.let { return it }
-            val project = Project(id = ProjectId(UUID.randomUUID().toString()), name = finalName, path = path)
-            state.value = state.value + project
-            writeToDisk(state.value)
-            return project
+        val resolved = mutex.withLock {
+            val existing = state.value.firstOrNull { it.path == path }
+            if (existing != null) {
+                existing
+            } else {
+                val project = Project(id = ProjectId(UUID.randomUUID().toString()), name = finalName, path = path)
+                state.value = state.value + project
+                writeToDisk(state.value)
+                project
+            }
         }
+        if (iconCache.cachedFile(resolved.id) == null) {
+            scope.launch(Dispatchers.IO) { iconCache.resolveAndCache(resolved) }
+        }
+        return resolved
     }
 
     override suspend fun remove(id: ProjectId) {
@@ -50,6 +62,7 @@ class FileProjectRepository(
             state.value = state.value.filterNot { it.id == id }
             writeToDisk(state.value)
         }
+        iconCache.invalidate(id)
     }
 
     override suspend fun get(id: ProjectId): Project? = state.value.firstOrNull { it.id == id }
@@ -98,6 +111,14 @@ class FileProjectRepository(
             if (updated == state.value) return@withLock
             state.value = updated
             writeToDisk(state.value)
+        }
+    }
+
+    private suspend fun ensureIconsForExisting() {
+        state.value.forEach { project ->
+            if (iconCache.cachedFile(project.id) == null) {
+                iconCache.resolveAndCache(project)
+            }
         }
     }
 

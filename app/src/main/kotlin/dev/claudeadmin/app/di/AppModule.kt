@@ -11,6 +11,7 @@ import dev.claudeadmin.data.opencode.OpenCodeSessionRepository
 import dev.claudeadmin.data.outputstyle.FileOutputStyleRepository
 import dev.claudeadmin.data.project.FileProjectGroupRepository
 import dev.claudeadmin.data.project.FileProjectRepository
+import dev.claudeadmin.data.project.ProjectIconCache
 import dev.claudeadmin.data.session.FileClaudeSessionRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.skill.FileSkillRepository
@@ -56,8 +57,12 @@ val appModule = module {
         CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 
+    single<ProjectIconCache> { ProjectIconCache() }
     single<ProjectRepository> {
-        FileProjectRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))
+        FileProjectRepository(
+            iconCache = get(),
+            scope = get(qualifier = org.koin.core.qualifier.named("AppScope")),
+        )
     }
     single<ProjectGroupRepository> {
         FileProjectGroupRepository(scope = get(qualifier = org.koin.core.qualifier.named("AppScope")))

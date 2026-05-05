@@ -1,5 +1,6 @@
 package dev.claudeadmin.app.ui.sidebar
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -43,23 +44,32 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.jetbrains.skia.Image as SkiaImage
+import org.koin.compose.koinInject
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
@@ -70,6 +80,7 @@ import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
 import dev.claudeadmin.app.ui.util.ConfirmDialog
+import dev.claudeadmin.data.project.ProjectIconCache
 import dev.claudeadmin.presentation.root.RootState
 import dev.claudeadmin.presentation.root.Selection
 import dev.claudeadmin.presentation.root.SidebarRow
@@ -555,7 +566,7 @@ private fun ProjectRow(
     ) {
         DragHandle(dragHandleModifier = dragHandleModifier)
         Spacer(Modifier.width(4.dp))
-        ProjectBadge(project.name)
+        ProjectBadge(project = project)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
@@ -875,13 +886,50 @@ private fun formatRelative(timestampMs: Long): String {
 }
 
 @Composable
-private fun ProjectBadge(name: String) {
+private fun ProjectBadge(project: Project) {
+    val iconCache = koinInject<ProjectIconCache>()
+    val updates by iconCache.updates.collectAsState()
+    val tick = updates[project.id] ?: 0L
+    val bitmap by produceState<ImageBitmap?>(
+        initialValue = null,
+        key1 = project.id.value,
+        key2 = tick,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            val file = iconCache.cachedFile(project.id) ?: return@withContext null
+            runCatching {
+                SkiaImage.makeFromEncoded(file.readBytes()).use { it.toComposeImageBitmap() }
+            }.getOrNull()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(6.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        val current = bitmap
+        if (current != null) {
+            Image(
+                bitmap = current,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            ProjectInitialsBadge(name = project.name)
+        }
+    }
+}
+
+@Composable
+private fun ProjectInitialsBadge(name: String) {
     val initials = remember(name) { projectInitials(name) }
     val color = remember(name) { projectColor(name) }
     Box(
         modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .fillMaxSize()
             .background(color),
         contentAlignment = Alignment.Center,
     ) {
