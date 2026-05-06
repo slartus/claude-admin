@@ -7,6 +7,7 @@ import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.domain.model.ProjectGroup
 import dev.claudeadmin.domain.model.ProjectId
+import dev.claudeadmin.domain.model.SessionSearchHit
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
 
@@ -23,7 +24,12 @@ data class RootState(
     val orphanSessionsByCwd: Map<String, List<AiSession>> = emptyMap(),
     val sessionPreviewById: Map<String, String> = emptyMap(),
     val pendingTerminalProvider: ProjectId? = null,
+    val searchQuery: String = "",
+    val searchInProgress: Boolean = false,
+    val searchResults: List<SessionSearchHit> = emptyList(),
 ) {
+
+    val isSearchActive: Boolean get() = searchQuery.isNotBlank()
 
     val terminalsByProject: Map<ProjectId, List<TerminalSession>>
         get() = terminals.asSequence()

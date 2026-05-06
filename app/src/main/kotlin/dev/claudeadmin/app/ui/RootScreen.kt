@@ -64,6 +64,8 @@ fun RootScreen(
                     onRemoveGroup = component::removeGroup,
                     onToggleGroupCollapsed = component::toggleGroupCollapsed,
                     onMoveProjectToGroup = component::moveProjectToGroup,
+                    onSearchQueryChange = component::setSearchQuery,
+                    onClearSearch = component::clearSearch,
                 )
                 Box(
                     modifier = Modifier

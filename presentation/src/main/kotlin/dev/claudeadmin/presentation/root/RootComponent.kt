@@ -24,20 +24,25 @@ import dev.claudeadmin.domain.usecase.RemoveGroupUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
 import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
+import dev.claudeadmin.domain.usecase.SearchSessionsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@OptIn(FlowPreview::class)
 class RootComponent(
     componentContext: ComponentContext,
     private val observeProjects: ObserveProjectsUseCase,
@@ -58,12 +63,15 @@ class RootComponent(
     private val removeGroupUseCase: RemoveGroupUseCase,
     private val toggleGroupCollapsedUseCase: ToggleGroupCollapsedUseCase,
     private val moveProjectToGroupUseCase: MoveProjectToGroupUseCase,
+    private val searchSessionsUseCase: SearchSessionsUseCase,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
     private val _state = MutableStateFlow(RootState())
     val state: StateFlow<RootState> = _state.asStateFlow()
+
+    private val searchQueryFlow = MutableStateFlow("")
 
     private var detailsLoad: Job? = null
     private val gitJobs = mutableMapOf<ProjectId, GitSubscription>()
@@ -93,6 +101,24 @@ class RootComponent(
                 applyProjectsAndGrouping(_state.value.projects, allSessions)
             }
         }
+
+        scope.launch {
+            searchQueryFlow
+                .debounce(SEARCH_DEBOUNCE_MS)
+                .collectLatest { query -> runSearch(query) }
+        }
+    }
+
+    private suspend fun runSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            _state.update { it.copy(searchInProgress = false, searchResults = emptyList()) }
+            return
+        }
+        _state.update { it.copy(searchInProgress = true) }
+        val hits = runCatching { searchSessionsUseCase(trimmed) }.getOrDefault(emptyList())
+        if (searchQueryFlow.value.trim() != trimmed) return
+        _state.update { it.copy(searchInProgress = false, searchResults = hits) }
     }
 
     private fun applyProjectsAndGrouping(projects: List<Project>, sessions: List<AiSession>) {
@@ -301,8 +327,23 @@ class RootComponent(
         scope.launch { moveProjectToGroupUseCase(projectId, groupId) }
     }
 
+    fun setSearchQuery(query: String) {
+        _state.update {
+            it.copy(
+                searchQuery = query,
+                searchInProgress = query.isNotBlank(),
+            )
+        }
+        searchQueryFlow.value = query
+    }
+
+    fun clearSearch() {
+        setSearchQuery("")
+    }
+
     private companion object {
         const val SESSIONS_PER_BUCKET = 50
+        const val SEARCH_DEBOUNCE_MS = 200L
     }
 
     private fun loadDetailsFor(id: ProjectId) {

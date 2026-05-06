@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +41,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -109,6 +111,8 @@ fun Sidebar(
     onRemoveGroup: (GroupId) -> Unit,
     onToggleGroupCollapsed: (GroupId, Boolean) -> Unit,
     onMoveProjectToGroup: (ProjectId, GroupId?) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
@@ -147,7 +151,35 @@ fun Sidebar(
                 Icon(Icons.Default.Add, contentDescription = "Add project")
             }
         }
+
+        OutlinedTextField(
+            value = state.searchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = { Text("Search") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (state.searchQuery.isNotEmpty()) {
+                    IconButton(onClick = onClearSearch) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear search")
+                    }
+                }
+            },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+
         Divider()
+
+        if (state.isSearchActive) {
+            SidebarSearchResults(
+                state = state,
+                onResumeSession = onResumeSession,
+                onResumeOrphanSession = onResumeOrphanSession,
+            )
+            return@Column
+        }
 
         val rows = remember(state.groups, state.projects) {
             buildSidebarRows(state.groups, state.projects)

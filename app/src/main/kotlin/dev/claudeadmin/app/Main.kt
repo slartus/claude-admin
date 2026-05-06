@@ -44,6 +44,7 @@ import dev.claudeadmin.domain.usecase.RemoveGroupUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
 import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
+import dev.claudeadmin.domain.usecase.SearchSessionsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import dev.claudeadmin.presentation.root.RootComponent
@@ -100,6 +101,7 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
             removeGroupUseCase = koin.get<RemoveGroupUseCase>(),
             toggleGroupCollapsedUseCase = koin.get<ToggleGroupCollapsedUseCase>(),
             moveProjectToGroupUseCase = koin.get<MoveProjectToGroupUseCase>(),
+            searchSessionsUseCase = koin.get<SearchSessionsUseCase>(),
         )
     }
 

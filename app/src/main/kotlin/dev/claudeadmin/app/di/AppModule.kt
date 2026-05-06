@@ -12,6 +12,9 @@ import dev.claudeadmin.data.outputstyle.FileOutputStyleRepository
 import dev.claudeadmin.data.project.FileProjectGroupRepository
 import dev.claudeadmin.data.project.FileProjectRepository
 import dev.claudeadmin.data.project.ProjectIconCache
+import dev.claudeadmin.data.search.AggregateSessionSearchRepository
+import dev.claudeadmin.data.search.ClaudeSessionSearchRepository
+import dev.claudeadmin.data.search.OpenCodeSessionSearchRepository
 import dev.claudeadmin.data.session.FileClaudeSessionRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.skill.FileSkillRepository
@@ -29,6 +32,7 @@ import dev.claudeadmin.domain.repository.OpenCodeSettingsRepository
 import dev.claudeadmin.domain.repository.OutputStyleRepository
 import dev.claudeadmin.domain.repository.ProjectGroupRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
+import dev.claudeadmin.domain.repository.SessionSearchRepository
 import dev.claudeadmin.domain.repository.SkillRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -45,6 +49,7 @@ import dev.claudeadmin.domain.usecase.RemoveGroupUseCase
 import dev.claudeadmin.domain.usecase.RemoveProjectUseCase
 import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
+import dev.claudeadmin.domain.usecase.SearchSessionsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
 import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import kotlinx.coroutines.CoroutineScope
@@ -94,6 +99,15 @@ val appModule = module {
         )
     }
 
+    single<SessionSearchRepository> {
+        AggregateSessionSearchRepository(
+            sources = listOf(
+                ClaudeSessionSearchRepository(),
+                OpenCodeSessionSearchRepository(),
+            ),
+        )
+    }
+
     single<OpenCodeMdRepository> { FileOpenCodeMdRepository() }
     single<OpenCodeSettingsRepository> { FileOpenCodeSettingsRepository() }
 
@@ -121,4 +135,5 @@ val appModule = module {
     factory { RemoveGroupUseCase(get(), get()) }
     factory { ToggleGroupCollapsedUseCase(get()) }
     factory { MoveProjectToGroupUseCase(get()) }
+    factory { SearchSessionsUseCase(get()) }
 }
