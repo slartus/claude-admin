@@ -1,6 +1,8 @@
 package dev.claudeadmin.app.ui.sidebar
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -600,17 +602,19 @@ private fun ProjectRow(
         Spacer(Modifier.width(4.dp))
         ProjectBadge(project = project)
         Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Text(
-                text = project.path,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (git != null) GitBranchLabel(git)
+        HoverTooltip(text = project.path, modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(project.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    text = project.path,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (git != null) GitBranchLabel(git)
+            }
         }
         IconButton(onClick = onRequestOpenTerminal) {
             Icon(Icons.Default.Terminal, contentDescription = "Open terminal", modifier = Modifier.size(18.dp))
@@ -685,12 +689,14 @@ private fun TerminalRow(
     ) {
         ProviderLabel(provider)
         Spacer(Modifier.width(4.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-        )
+        HoverTooltip(text = title, modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
         }
@@ -810,13 +816,15 @@ private fun OrphanSessionRow(
             modifier = Modifier.size(14.dp),
         )
         Spacer(Modifier.width(6.dp))
-        Text(
-            text = displayText,
-            style = MaterialTheme.typography.bodySmall,
-            color = textColor,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-        )
+        HoverTooltip(text = displayText, modifier = Modifier.weight(1f)) {
+            Text(
+                text = displayText,
+                style = MaterialTheme.typography.bodySmall,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(Modifier.width(6.dp))
         if (running) {
             if (onClose != null) {
@@ -886,13 +894,15 @@ private fun SavedSessionRow(
     ) {
         ProviderLabel(session.provider)
         Spacer(Modifier.width(4.dp))
-        Text(
-            text = session.preview,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-        )
+        HoverTooltip(text = session.preview, modifier = Modifier.weight(1f)) {
+            Text(
+                text = session.preview,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(Modifier.width(6.dp))
         Text(
             text = formatRelative(session.lastModified),
@@ -915,6 +925,37 @@ private fun formatRelative(timestampMs: Long): String {
         days < 30L -> "${days}d"
         else -> "${days / 30L}mo"
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HoverTooltip(
+    text: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    if (text.isBlank()) {
+        Box(modifier = modifier) { content() }
+        return
+    }
+    TooltipArea(
+        tooltip = {
+            Surface(
+                color = MaterialTheme.colorScheme.inverseSurface,
+                shape = MaterialTheme.shapes.small,
+                shadowElevation = 4.dp,
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+        },
+        modifier = modifier,
+        content = content,
+    )
 }
 
 @Composable

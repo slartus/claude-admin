@@ -122,8 +122,11 @@ class FileClaudeSessionRepository(
                 val meta = if (cached != null && cached.mtime == mtime) {
                     cached
                 } else {
-                    val cwd = readCwd(file) ?: decodeSlug(folder.name)
-                    val preview = readPreview(file) ?: fallbackPreview(file.nameWithoutExtension)
+                    val parsed = parseMeta(file)
+                    val cwd = parsed.cwd ?: decodeSlug(folder.name)
+                    val preview = parsed.title
+                        ?: parsed.firstUserText
+                        ?: fallbackPreview(file.nameWithoutExtension)
                     CachedMeta(mtime, cwd, preview).also { metaCache[file.absolutePath] = it }
                 }
                 result.add(
@@ -143,19 +146,41 @@ class FileClaudeSessionRepository(
 
     private fun decodeSlug(slug: String): String = slug.replace('-', '/')
 
-    private fun readCwd(file: File): String? {
-        return runCatching {
+    private fun parseMeta(file: File): ParsedMeta {
+        var cwd: String? = null
+        var title: String? = null
+        var firstUserText: String? = null
+        runCatching {
             file.useLines { lines ->
-                var scanned = 0
                 for (raw in lines) {
-                    if (scanned++ >= MAX_LINES_TO_SCAN) return@useLines null
                     if (raw.isBlank()) continue
+                    // Быстрый префильтр, чтобы не парсить JSON для нерелевантных строк.
+                    val mayHaveCwd = cwd == null && raw.contains("\"cwd\"")
+                    val mayHaveTitle = raw.contains("\"ai-title\"")
+                    val mayHaveUser = firstUserText == null && raw.contains("\"user\"")
+                    if (!mayHaveCwd && !mayHaveTitle && !mayHaveUser) continue
                     val obj = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: continue
-                    extractCwd(obj)?.let { return@useLines it }
+                    val type = (obj["type"] as? JsonPrimitive)?.contentOrNull
+                    when {
+                        mayHaveTitle && type == "ai-title" ->
+                            (obj["aiTitle"] as? JsonPrimitive)?.contentOrNull
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { title = firstLine(it) }
+                        mayHaveUser && type == "user" ->
+                            extractUserText(obj)?.let { firstUserText = firstLine(it) }
+                    }
+                    if (cwd == null) extractCwd(obj)?.let { cwd = it }
                 }
-                null
             }
-        }.getOrNull()
+        }
+        return ParsedMeta(cwd = cwd, title = title, firstUserText = firstUserText)
+    }
+
+    private fun extractUserText(obj: JsonObject): String? {
+        val msg = obj["message"] as? JsonObject ?: return null
+        val content = msg["content"] ?: return null
+        val text = extractText(content) ?: return null
+        return if (isCommandMeta(text)) null else text
     }
 
     private fun extractCwd(obj: JsonObject): String? {
@@ -166,27 +191,6 @@ class FileClaudeSessionRepository(
             (infoObj["cwd"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
         }
         return null
-    }
-
-    private fun readPreview(file: File): String? {
-        return runCatching {
-            file.useLines { lines ->
-                var scanned = 0
-                for (raw in lines) {
-                    if (scanned++ >= MAX_LINES_TO_SCAN) return@useLines null
-                    if (raw.isBlank()) continue
-                    val obj = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: continue
-                    val type = (obj["type"] as? JsonPrimitive)?.contentOrNull
-                    if (type != "user") continue
-                    val msg = obj["message"] as? JsonObject ?: continue
-                    val content = msg["content"] ?: continue
-                    val text = extractText(content) ?: continue
-                    if (isCommandMeta(text)) continue
-                    return@useLines truncate(text)
-                }
-                null
-            }
-        }.getOrNull()
     }
 
     private fun isCommandMeta(text: String): Boolean {
@@ -207,16 +211,14 @@ class FileClaudeSessionRepository(
 
     private fun fallbackPreview(id: String): String = "session ${id.take(8)}"
 
-    private fun truncate(s: String): String {
-        val line = s.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: return s
-        return if (line.length > PREVIEW_MAX_CHARS) line.take(PREVIEW_MAX_CHARS).trimEnd() + "…" else line
-    }
+    private fun firstLine(s: String): String =
+        s.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: s
 
     private data class CachedMeta(val mtime: Long, val cwd: String, val preview: String)
 
+    private data class ParsedMeta(val cwd: String?, val title: String?, val firstUserText: String?)
+
     private companion object {
-        const val MAX_LINES_TO_SCAN = 200
-        const val PREVIEW_MAX_CHARS = 80
         const val BASEDIR_POLL_MS = 2_000L
         val json = Json { ignoreUnknownKeys = true }
     }
