@@ -39,12 +39,14 @@ class PtyTerminalRepository : TerminalRepository {
         title: String,
         resumeSessionId: String?,
         provider: AiProvider,
+        claudeSettingsPath: String?,
     ): TerminalSession = spawn(
         projectId = project.id,
         cwd = project.path,
         title = title,
         resumeSessionId = resumeSessionId,
         provider = provider,
+        claudeSettingsPath = claudeSettingsPath,
     )
 
     override suspend fun openDetached(
@@ -52,12 +54,14 @@ class PtyTerminalRepository : TerminalRepository {
         title: String,
         resumeSessionId: String?,
         provider: AiProvider,
+        claudeSettingsPath: String?,
     ): TerminalSession = spawn(
         projectId = null,
         cwd = cwd,
         title = title,
         resumeSessionId = resumeSessionId,
         provider = provider,
+        claudeSettingsPath = claudeSettingsPath,
     )
 
     private suspend fun spawn(
@@ -66,9 +70,10 @@ class PtyTerminalRepository : TerminalRepository {
         title: String,
         resumeSessionId: String?,
         provider: AiProvider,
+        claudeSettingsPath: String?,
     ): TerminalSession = withContext(Dispatchers.IO) {
         val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
-        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId)
+        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath)
         val backend = PtyFactory.spawn(cwd, fullCommand)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
@@ -78,6 +83,7 @@ class PtyTerminalRepository : TerminalRepository {
             createdAt = System.currentTimeMillis(),
             aiSessionId = aiSessionId,
             aiProvider = provider,
+            claudeSettingsPath = claudeSettingsPath,
         )
         mutex.withLock {
             entries.value = entries.value + (session.id to Entry(session, backend))
@@ -89,12 +95,14 @@ class PtyTerminalRepository : TerminalRepository {
         provider: AiProvider,
         resumeSessionId: String?,
         aiSessionId: String,
+        claudeSettingsPath: String?,
     ): String = when (provider) {
         AiProvider.CLAUDE -> {
+            val settings = if (claudeSettingsPath != null) "--settings $claudeSettingsPath " else ""
             if (resumeSessionId != null) {
-                "${provider.cliCommand} --resume $resumeSessionId"
+                "$settings${provider.cliCommand} --resume $resumeSessionId"
             } else {
-                "${provider.cliCommand} --session-id=$aiSessionId"
+                "$settings${provider.cliCommand} --session-id=$aiSessionId"
             }
         }
         AiProvider.OPENCODE -> {

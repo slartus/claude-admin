@@ -85,6 +85,7 @@ import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
 import dev.claudeadmin.app.ui.util.ConfirmDialog
 import dev.claudeadmin.data.project.ProjectIconCache
+import dev.claudeadmin.presentation.root.PendingResume
 import dev.claudeadmin.presentation.root.RootState
 import dev.claudeadmin.presentation.root.Selection
 import dev.claudeadmin.presentation.root.SidebarRow
@@ -101,8 +102,7 @@ fun Sidebar(
     onRequestOpenTerminal: (ProjectId) -> Unit,
     onSelectTerminal: (ProjectId?, TerminalSessionId) -> Unit,
     onCloseTerminal: (TerminalSessionId) -> Unit,
-    onResumeSession: (ProjectId, String, AiProvider) -> Unit,
-    onResumeOrphanSession: (cwd: String, sessionId: String, provider: AiProvider) -> Unit,
+    onRequestResumeSession: (PendingResume) -> Unit,
     onAddProjectFromOrphan: (cwd: String) -> Unit,
     onDismissError: () -> Unit,
     onSetGitRoot: (ProjectId, String?) -> Unit,
@@ -177,8 +177,12 @@ fun Sidebar(
         if (state.isSearchActive) {
             SidebarSearchResults(
                 state = state,
-                onResumeSession = onResumeSession,
-                onResumeOrphanSession = onResumeOrphanSession,
+                onResumeSession = { projectId, sessionId, provider ->
+                    onRequestResumeSession(PendingResume.ProjectSession(projectId, sessionId, provider))
+                },
+                onResumeOrphanSession = { cwd, sessionId, provider ->
+                    onRequestResumeSession(PendingResume.OrphanSession(cwd, sessionId, provider))
+                },
             )
             return@Column
         }
@@ -282,7 +286,11 @@ fun Sidebar(
                                         SavedSessionRow(
                                             session = session,
                                             depth = row.depth,
-                                            onClick = { onResumeSession(project.id, session.id, session.provider) },
+                                            onClick = {
+                                                onRequestResumeSession(
+                                                    PendingResume.ProjectSession(project.id, session.id, session.provider)
+                                                )
+                                            },
                                         )
                                     }
                                 }
@@ -336,7 +344,9 @@ fun Sidebar(
                                         if (runningTerminal != null) {
                                             onSelectTerminal(null, runningTerminal.id)
                                         } else {
-                                            onResumeOrphanSession(row.cwd, row.session.id, row.session.provider)
+                                            onRequestResumeSession(
+                                                PendingResume.OrphanSession(row.cwd, row.session.id, row.session.provider)
+                                            )
                                         }
                                     },
                                     onClose = runningTerminal?.let { term -> { pendingClose = term } },

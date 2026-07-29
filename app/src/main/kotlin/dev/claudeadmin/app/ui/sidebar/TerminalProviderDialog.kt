@@ -15,12 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import dev.claudeadmin.domain.model.AiProvider
+import dev.claudeadmin.domain.model.ClaudeUserSettings
 
 @Composable
 fun TerminalProviderDialog(
-    onResult: (AiProvider?) -> Unit,
+    claudeUserSettings: List<ClaudeUserSettings>,
+    showOpenCode: Boolean = true,
+    onResult: (AiProvider, claudeSettingsPath: String?) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = { onResult(null) }) {
+    Dialog(onDismissRequest = onDismiss) {
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -31,29 +35,54 @@ fun TerminalProviderDialog(
                     .fillMaxWidth()
                     .padding(20.dp),
             ) {
-                AiProvider.entries.forEach { provider ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onResult(provider) }
-                            .padding(vertical = 8.dp, horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = provider.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            text = provider.terminalLabel,
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                color = MaterialTheme.colorScheme.primary,
-                            ),
-                            modifier = Modifier.padding(end = 8.dp),
-                        )
-                    }
+                ProviderRow(
+                    displayName = AiProvider.CLAUDE.displayName,
+                    terminalLabel = AiProvider.CLAUDE.terminalLabel,
+                    onClick = { onResult(AiProvider.CLAUDE, null) },
+                )
+                claudeUserSettings.forEach { settings ->
+                    ProviderRow(
+                        displayName = "${AiProvider.CLAUDE.displayName} · ${settings.name}",
+                        terminalLabel = AiProvider.CLAUDE.terminalLabel,
+                        onClick = { onResult(AiProvider.CLAUDE, settings.path) },
+                    )
+                }
+                if (showOpenCode) {
+                    ProviderRow(
+                        displayName = AiProvider.OPENCODE.displayName,
+                        terminalLabel = AiProvider.OPENCODE.terminalLabel,
+                        onClick = { onResult(AiProvider.OPENCODE, null) },
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProviderRow(
+    displayName: String,
+    terminalLabel: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp, horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = displayName,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = terminalLabel,
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = MaterialTheme.colorScheme.primary,
+            ),
+            modifier = Modifier.padding(end = 8.dp),
+        )
     }
 }

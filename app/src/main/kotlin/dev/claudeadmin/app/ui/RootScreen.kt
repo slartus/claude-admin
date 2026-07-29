@@ -25,8 +25,11 @@ import androidx.compose.runtime.collectAsState
 import dev.claudeadmin.app.ui.terminal.TerminalWidgetCache
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.model.AiProvider
+import dev.claudeadmin.domain.repository.ClaudeUserSettingsRepository
+import dev.claudeadmin.presentation.root.PendingResume
 import dev.claudeadmin.presentation.root.RootComponent
 import dev.claudeadmin.presentation.root.Selection
+import org.koin.compose.koinInject
 
 @Composable
 fun RootScreen(
@@ -34,6 +37,8 @@ fun RootScreen(
     ptyRepo: PtyTerminalRepository,
 ) {
     val state by component.state.collectAsState()
+    val settingsRepo = koinInject<ClaudeUserSettingsRepository>()
+    val claudeUserSettings = settingsRepo.list()
 
     LaunchedEffect(state.terminals) {
         TerminalWidgetCache.retainOnly(state.terminals.map { it.id }.toSet())
@@ -52,8 +57,7 @@ fun RootScreen(
                     onRequestOpenTerminal = component::requestOpenTerminal,
                     onSelectTerminal = component::selectTerminal,
                     onCloseTerminal = component::closeTerminal,
-                    onResumeSession = component::resumeAiSession,
-                    onResumeOrphanSession = component::resumeOrphanSession,
+                    onRequestResumeSession = component::requestResumeSession,
                     onAddProjectFromOrphan = component::addProjectFromOrphan,
                     onDismissError = component::dismissAddProjectError,
                     onSetGitRoot = component::setGitRoot,
@@ -72,7 +76,7 @@ fun RootScreen(
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.surface),
                 ) {
-                    if (state.pendingTerminalProvider == null) {
+                    if (state.pendingTerminalProvider == null && state.pendingResume == null) {
                         when (val sel = state.selection) {
                             null -> WelcomeView()
                             is Selection.Details -> DetailsView(
@@ -95,13 +99,41 @@ fun RootScreen(
 
     state.pendingTerminalProvider?.let { projectId ->
         TerminalProviderDialog(
-            onResult = { provider ->
-                if (provider != null) {
-                    component.openTerminal(projectId, provider)
-                } else {
-                    component.cancelOpenTerminal()
-                }
+            claudeUserSettings = claudeUserSettings,
+            onResult = { provider, settingsPath ->
+                component.openTerminal(projectId, provider, settingsPath)
             },
+            onDismiss = { component.cancelOpenTerminal() },
         )
+    }
+
+    state.pendingResume?.let { resume ->
+        when (resume.provider) {
+            AiProvider.CLAUDE -> {
+                TerminalProviderDialog(
+                    claudeUserSettings = claudeUserSettings,
+                    showOpenCode = false,
+                    onResult = { _, settingsPath ->
+                        when (resume) {
+                            is PendingResume.ProjectSession ->
+                                component.resumeAiSession(resume.projectId, resume.sessionId, AiProvider.CLAUDE, settingsPath)
+                            is PendingResume.OrphanSession ->
+                                component.resumeOrphanSession(resume.cwd, resume.sessionId, AiProvider.CLAUDE, settingsPath)
+                        }
+                    },
+                    onDismiss = { component.cancelResume() },
+                )
+            }
+            AiProvider.OPENCODE -> {
+                LaunchedEffect(resume) {
+                    when (resume) {
+                        is PendingResume.ProjectSession ->
+                            component.resumeAiSession(resume.projectId, resume.sessionId, AiProvider.OPENCODE)
+                        is PendingResume.OrphanSession ->
+                            component.resumeOrphanSession(resume.cwd, resume.sessionId, AiProvider.OPENCODE)
+                    }
+                }
+            }
+        }
     }
 }

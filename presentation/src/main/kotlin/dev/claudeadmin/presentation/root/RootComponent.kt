@@ -254,9 +254,9 @@ class RootComponent(
         _state.update { it.copy(pendingTerminalProvider = id) }
     }
 
-    fun openTerminal(id: ProjectId, provider: AiProvider) {
+    fun openTerminal(id: ProjectId, provider: AiProvider, claudeSettingsPath: String? = null) {
         scope.launch {
-            openTerminal.invoke(id, provider = provider).onSuccess { session ->
+            openTerminal.invoke(id, provider = provider, claudeSettingsPath = claudeSettingsPath).onSuccess { session ->
                 _state.update { it.copy(selection = Selection.Terminal(id, session.id), pendingTerminalProvider = null) }
             }
         }
@@ -266,18 +266,26 @@ class RootComponent(
         _state.update { it.copy(pendingTerminalProvider = null) }
     }
 
-    fun resumeAiSession(projectId: ProjectId, sessionId: String, provider: AiProvider) {
+    fun requestResumeSession(resume: PendingResume) {
+        _state.update { it.copy(pendingResume = resume) }
+    }
+
+    fun cancelResume() {
+        _state.update { it.copy(pendingResume = null) }
+    }
+
+    fun resumeAiSession(projectId: ProjectId, sessionId: String, provider: AiProvider, claudeSettingsPath: String? = null) {
         scope.launch {
-            openTerminal.invoke(projectId, resumeSessionId = sessionId, provider = provider).onSuccess { session ->
-                _state.update { it.copy(selection = Selection.Terminal(projectId, session.id)) }
+            openTerminal.invoke(projectId, resumeSessionId = sessionId, provider = provider, claudeSettingsPath = claudeSettingsPath).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(projectId, session.id), pendingResume = null) }
             }
         }
     }
 
-    fun resumeOrphanSession(cwd: String, sessionId: String, provider: AiProvider) {
+    fun resumeOrphanSession(cwd: String, sessionId: String, provider: AiProvider, claudeSettingsPath: String? = null) {
         scope.launch {
-            openTerminal.openDetached(cwd, resumeSessionId = sessionId, provider = provider).onSuccess { session ->
-                _state.update { it.copy(selection = Selection.Terminal(null, session.id)) }
+            openTerminal.openDetached(cwd, resumeSessionId = sessionId, provider = provider, claudeSettingsPath = claudeSettingsPath).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(null, session.id), pendingResume = null) }
             }
         }
     }

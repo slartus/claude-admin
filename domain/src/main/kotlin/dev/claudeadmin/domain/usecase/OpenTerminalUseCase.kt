@@ -15,10 +15,11 @@ class OpenTerminalUseCase(
         title: String = "terminal",
         resumeSessionId: String? = null,
         provider: AiProvider,
+        claudeSettingsPath: String? = null,
     ): Result<TerminalSession> {
         val project = projects.get(projectId)
             ?: return Result.failure(IllegalStateException("Project $projectId not found"))
-        return runCatching { terminals.open(project, title, resumeSessionId, provider) }
+        return runCatching { terminals.open(project, title, resumeSessionId, provider, claudeSettingsPath) }
     }
 
     suspend fun openDetached(
@@ -26,5 +27,6 @@ class OpenTerminalUseCase(
         title: String = "terminal",
         resumeSessionId: String? = null,
         provider: AiProvider,
-    ): Result<TerminalSession> = runCatching { terminals.openDetached(cwd, title, resumeSessionId, provider) }
+        claudeSettingsPath: String? = null,
+    ): Result<TerminalSession> = runCatching { terminals.openDetached(cwd, title, resumeSessionId, provider, claudeSettingsPath) }
 }

@@ -24,6 +24,7 @@ data class RootState(
     val orphanSessionsByCwd: Map<String, List<AiSession>> = emptyMap(),
     val sessionPreviewById: Map<String, String> = emptyMap(),
     val pendingTerminalProvider: ProjectId? = null,
+    val pendingResume: PendingResume? = null,
     val searchQuery: String = "",
     val searchInProgress: Boolean = false,
     val searchResults: List<SessionSearchHit> = emptyList(),
@@ -71,4 +72,21 @@ sealed interface DetailsState {
     data object Loading : DetailsState
     data class Loaded(val details: ProjectDetails) : DetailsState
     data class Error(val message: String) : DetailsState
+}
+
+sealed interface PendingResume {
+    val sessionId: String
+    val provider: AiProvider
+
+    data class ProjectSession(
+        val projectId: ProjectId,
+        override val sessionId: String,
+        override val provider: AiProvider,
+    ) : PendingResume
+
+    data class OrphanSession(
+        val cwd: String,
+        override val sessionId: String,
+        override val provider: AiProvider,
+    ) : PendingResume
 }

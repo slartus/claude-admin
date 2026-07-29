@@ -17,6 +17,7 @@ import dev.claudeadmin.data.search.ClaudeSessionSearchRepository
 import dev.claudeadmin.data.search.OpenCodeSessionSearchRepository
 import dev.claudeadmin.data.session.FileClaudeSessionRepository
 import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
+import dev.claudeadmin.data.settings.FileClaudeUserSettingsRepository
 import dev.claudeadmin.data.skill.FileSkillRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.domain.repository.AgentRepository
@@ -24,6 +25,7 @@ import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSessionRepository
 import dev.claudeadmin.domain.repository.ClaudeSettingsRepository
+import dev.claudeadmin.domain.repository.ClaudeUserSettingsRepository
 import dev.claudeadmin.domain.repository.CommandRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.repository.McpServerRepository
@@ -74,6 +76,7 @@ val appModule = module {
     }
     single<ClaudeMdRepository> { FileClaudeMdRepository() }
     single<ClaudeSettingsRepository> { FileClaudeSettingsRepository() }
+    single<ClaudeUserSettingsRepository> { FileClaudeUserSettingsRepository() }
     single<AgentRepository> { FileAgentRepository() }
     single<CommandRepository> { FileCommandRepository() }
     single<SkillRepository> { FileSkillRepository() }

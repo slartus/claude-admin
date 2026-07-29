@@ -8,6 +8,7 @@ data class TerminalSession(
     val createdAt: Long,
     val aiSessionId: String? = null,
     val aiProvider: AiProvider,
+    val claudeSettingsPath: String? = null,
 )
 
 @JvmInline
