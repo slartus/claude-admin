@@ -19,8 +19,12 @@ class PtyBackend(
 
 object PtyFactory {
 
-    fun spawn(projectPath: String, command: String = DEFAULT_COMMAND): PtyBackend {
-        val env = buildEnv()
+    fun spawn(
+        projectPath: String,
+        command: String = DEFAULT_COMMAND,
+        claudeSettingsPath: String? = null,
+    ): PtyBackend {
+        val env = buildEnv(claudeSettingsPath != null)
         val shell = System.getenv("SHELL") ?: "/bin/zsh"
         val cmd = arrayOf(shell, "-l", "-i", "-c", command)
         val process: PtyProcess = PtyProcessBuilder(cmd)
@@ -35,11 +39,14 @@ object PtyFactory {
         return PtyBackend(process, connector)
     }
 
-    private fun buildEnv(): Map<String, String> {
+    private fun buildEnv(hasCustomSettings: Boolean): Map<String, String> {
         val env = HashMap(System.getenv())
         env["TERM"] = "xterm-256color"
         env.putIfAbsent("LANG", "en_US.UTF-8")
         env.putIfAbsent("LC_ALL", "en_US.UTF-8")
+        if (hasCustomSettings) {
+            env.keys.removeIf { it.startsWith("ANTHROPIC_") }
+        }
         return env
     }
 

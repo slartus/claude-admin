@@ -74,7 +74,7 @@ class PtyTerminalRepository : TerminalRepository {
     ): TerminalSession = withContext(Dispatchers.IO) {
         val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
         val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath)
-        val backend = PtyFactory.spawn(cwd, fullCommand)
+        val backend = PtyFactory.spawn(cwd, fullCommand, claudeSettingsPath)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
             projectId = projectId,
@@ -98,11 +98,11 @@ class PtyTerminalRepository : TerminalRepository {
         claudeSettingsPath: String?,
     ): String = when (provider) {
         AiProvider.CLAUDE -> {
-            val settings = if (claudeSettingsPath != null) "--settings $claudeSettingsPath " else ""
+            val settings = if (claudeSettingsPath != null) " --settings $claudeSettingsPath" else ""
             if (resumeSessionId != null) {
-                "$settings${provider.cliCommand} --resume $resumeSessionId"
+                "${provider.cliCommand}$settings --resume $resumeSessionId"
             } else {
-                "$settings${provider.cliCommand} --session-id=$aiSessionId"
+                "${provider.cliCommand}$settings --session-id=$aiSessionId"
             }
         }
         AiProvider.OPENCODE -> {
