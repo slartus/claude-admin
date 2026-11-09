@@ -35,6 +35,7 @@ sealed interface SidebarRow {
 fun buildSidebarRows(
     groups: List<ProjectGroup>,
     projects: List<Project>,
+    ignoreCollapsed: Boolean = false,
 ): List<SidebarRow> {
     if (groups.isEmpty()) {
         return projects.map { SidebarRow.ProjectItem(it, depth = 0) }
@@ -50,12 +51,12 @@ fun buildSidebarRows(
         val children = groupsByParent[parentId].orEmpty()
         for (group in children) {
             val descendantProjectCount = countProjectsRecursive(group.id, groupsByParent, projectsByGroup)
-            val collapsed = ancestorCollapsed || group.collapsed
+            val collapsed = !ignoreCollapsed && (ancestorCollapsed || group.collapsed)
             rows += SidebarRow.GroupHeader(
                 group = group,
                 depth = depth,
                 projectCount = descendantProjectCount,
-                selfCollapsed = group.collapsed,
+                selfCollapsed = group.collapsed && !ignoreCollapsed,
             )
             if (!collapsed) {
                 projectsByGroup[group.id].orEmpty().forEach { p ->

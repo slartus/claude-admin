@@ -3,6 +3,7 @@ package dev.claudeadmin.presentation.root
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GitStatus
+import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.domain.model.ProjectGroup
@@ -28,6 +29,7 @@ data class RootState(
     val searchQuery: String = "",
     val searchInProgress: Boolean = false,
     val searchResults: List<SessionSearchHit> = emptyList(),
+    val showOnlyActive: Boolean = false,
 ) {
 
     val isSearchActive: Boolean get() = searchQuery.isNotBlank()
@@ -43,6 +45,21 @@ data class RootState(
             .mapNotNull { t -> t.aiSessionId?.let { it to t } }
             .toMap()
 
+    val sidebarTerminalsByProject: Map<ProjectId, List<TerminalSession>>
+        get() {
+            val detached = terminals.filter { it.projectId == null }
+            if (detached.isEmpty()) return terminalsByProject
+            val projectsByPathLength = projects.sortedByDescending { it.path.length }
+            val result = terminalsByProject.toMutableMap()
+            detached.forEach { terminal ->
+                val owner = projectsByPathLength.firstOrNull { project ->
+                    terminal.cwd == project.path || terminal.cwd.startsWith(project.path + "/")
+                } ?: return@forEach
+                result[owner.id] = result[owner.id].orEmpty() + terminal
+            }
+            return result
+        }
+
     val visibleSavedSessionsByProject: Map<ProjectId, List<AiSession>>
         get() {
             val active = activeTrackedSessionIds()
@@ -51,10 +68,42 @@ data class RootState(
             }
         }
 
+    val sidebarProjects: List<Project>
+        get() {
+            if (!showOnlyActive) return projects
+            val withTerminals = sidebarTerminalsByProject.keys
+            return projects.filter { it.id in withTerminals }
+        }
+
+    val sidebarGroups: List<ProjectGroup>
+        get() {
+            if (!showOnlyActive) return groups
+            val validIds = groups.mapTo(HashSet()) { it.id }
+            val parentById = groups.associate { it.id to it.parentId }
+            val keep = HashSet<GroupId>()
+            sidebarProjects.forEach { project ->
+                var current = project.groupId?.takeIf { it in validIds }
+                while (current != null && keep.add(current)) {
+                    current = parentById[current]
+                }
+            }
+            return groups.filter { it.id in keep }
+        }
+
+    val sidebarSavedSessionsByProject: Map<ProjectId, List<AiSession>>
+        get() = if (showOnlyActive) emptyMap() else visibleSavedSessionsByProject
+
+    val sidebarOrphanSessionsByCwd: Map<String, List<AiSession>>
+        get() {
+            if (!showOnlyActive) return orphanSessionsByCwd
+            val running = detachedTerminalBySessionId.keys
+            return orphanSessionsByCwd
+                .mapValues { (_, sessions) -> sessions.filter { it.id in running } }
+                .filterValues { it.isNotEmpty() }
+        }
+
     private fun activeTrackedSessionIds(): Set<String> =
-        terminals.asSequence()
-            .filter { it.projectId != null }
-            .mapNotNullTo(hashSetOf()) { it.aiSessionId }
+        terminals.mapNotNullTo(hashSetOf()) { it.aiSessionId }
 }
 
 sealed interface Selection {

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
@@ -115,6 +116,7 @@ fun Sidebar(
     onMoveProjectToGroup: (ProjectId, GroupId?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
+    onToggleShowOnlyActive: () -> Unit,
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     var pendingClose by remember { mutableStateOf<TerminalSession?>(null) }
@@ -146,6 +148,14 @@ fun Sidebar(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onToggleShowOnlyActive) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = if (state.showOnlyActive) "Show all projects" else "Show only active sessions",
+                    tint = if (state.showOnlyActive) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             IconButton(onClick = { createGroupParent = GroupParentChoice(null) }) {
                 Icon(Icons.Default.CreateNewFolder, contentDescription = "New group")
             }
@@ -187,9 +197,13 @@ fun Sidebar(
             return@Column
         }
 
-        val rows = remember(state.groups, state.projects) {
-            buildSidebarRows(state.groups, state.projects)
+        val sidebarGroups = state.sidebarGroups
+        val sidebarProjects = state.sidebarProjects
+        val rows = remember(sidebarGroups, sidebarProjects, state.showOnlyActive) {
+            buildSidebarRows(sidebarGroups, sidebarProjects, ignoreCollapsed = state.showOnlyActive)
         }
+        val terminalsByProject = state.sidebarTerminalsByProject
+        val savedSessionsByProject = state.sidebarSavedSessionsByProject
         LazyColumn(
             state = lazyState,
             modifier = Modifier.fillMaxSize(),
@@ -200,7 +214,9 @@ fun Sidebar(
                     is SidebarRow.GroupHeader -> GroupHeaderRow(
                         header = row,
                         onToggleCollapsed = {
-                            onToggleGroupCollapsed(row.group.id, !row.group.collapsed)
+                            if (!state.showOnlyActive) {
+                                onToggleGroupCollapsed(row.group.id, !row.group.collapsed)
+                            }
                         },
                         onRename = { renamingGroup = row.group },
                         onCreateSubgroup = { createGroupParent = GroupParentChoice(row.group.id) },
@@ -222,7 +238,7 @@ fun Sidebar(
                                     translationY = drag?.takeIf { it.id == project.id }?.offsetY ?: 0f
                                 },
                         ) {
-                            val terminals = state.terminalsByProject[project.id].orEmpty()
+                            val terminals = terminalsByProject[project.id].orEmpty()
                             ProjectRow(
                                 project = project,
                                 depth = row.depth,
@@ -268,11 +284,11 @@ fun Sidebar(
                                     provider = session.aiProvider,
                                     depth = row.depth,
                                     selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
-                                    onClick = { onSelectTerminal(project.id, session.id) },
+                                    onClick = { onSelectTerminal(session.projectId, session.id) },
                                     onClose = { pendingClose = session },
                                 )
                             }
-                            val savedSessions = state.visibleSavedSessionsByProject[project.id].orEmpty()
+                            val savedSessions = savedSessionsByProject[project.id].orEmpty()
                             if (savedSessions.isNotEmpty()) {
                                 val expanded = sessionsExpanded[project.id] == true
                                 SessionsGroupHeader(
@@ -300,8 +316,18 @@ fun Sidebar(
                 }
             }
 
-            val orphanGroups = state.orphanSessionsByCwd
+            val orphanGroups = state.sidebarOrphanSessionsByCwd
             val orphanTotal = orphanGroups.values.sumOf { it.size }
+            if (state.showOnlyActive && rows.isEmpty() && orphanTotal == 0) {
+                item(key = "no-active") {
+                    Text(
+                        text = "No active sessions",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
             val detachedBySession = state.detachedTerminalBySessionId
             if (orphanTotal > 0) {
                 item(key = "orphan-divider") {
@@ -310,11 +336,11 @@ fun Sidebar(
                 item(key = "orphan-header") {
                     OrphanGroupHeader(
                         count = orphanTotal,
-                        expanded = orphanExpanded,
-                        onToggle = { orphanExpanded = !orphanExpanded },
+                        expanded = orphanExpanded || state.showOnlyActive,
+                        onToggle = { if (!state.showOnlyActive) orphanExpanded = !orphanExpanded },
                     )
                 }
-                if (orphanExpanded) {
+                if (orphanExpanded || state.showOnlyActive) {
                     val flat = buildList<OrphanRow> {
                         orphanGroups.forEach { (cwd, sessions) ->
                             add(OrphanRow.Cwd(cwd, sessions.size))

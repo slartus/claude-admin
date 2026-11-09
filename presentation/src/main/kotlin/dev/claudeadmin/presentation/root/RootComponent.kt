@@ -349,6 +349,10 @@ class RootComponent(
         setSearchQuery("")
     }
 
+    fun toggleShowOnlyActive() {
+        _state.update { it.copy(showOnlyActive = !it.showOnlyActive) }
+    }
+
     private companion object {
         const val SESSIONS_PER_BUCKET = 50
         const val SEARCH_DEBOUNCE_MS = 200L
