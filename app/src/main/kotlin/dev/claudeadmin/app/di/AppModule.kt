@@ -118,7 +118,12 @@ val appModule = module {
     single<OpenCodeMdRepository> { FileOpenCodeMdRepository() }
     single<OpenCodeSettingsRepository> { FileOpenCodeSettingsRepository() }
 
-    single<PtyTerminalRepository> { PtyTerminalRepository(hookPluginInstaller = get()) }
+    single<PtyTerminalRepository> {
+        PtyTerminalRepository(
+            hookPluginInstaller = get(),
+            scope = get(qualifier = org.koin.core.qualifier.named("AppScope")),
+        )
+    }
     single<TerminalRepository> { get<PtyTerminalRepository>() }
 
     single<FileHookPluginInstaller> { FileHookPluginInstaller(AppDirs.hookPluginDir) }

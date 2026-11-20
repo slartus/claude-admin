@@ -2,29 +2,37 @@ package dev.claudeadmin.data.terminal
 
 import com.jediterm.terminal.TtyConnector
 import dev.claudeadmin.data.hooks.FileHookPluginInstaller
+import dev.claudeadmin.data.opencode.OpenCodeDb
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
 import dev.claudeadmin.domain.repository.TerminalRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 class PtyTerminalRepository(
     private val hookPluginInstaller: FileHookPluginInstaller? = null,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : TerminalRepository {
 
     private data class Entry(val session: TerminalSession, val backend: PtyBackend)
 
     private val mutex = Mutex()
     private val entries = MutableStateFlow<Map<TerminalSessionId, Entry>>(emptyMap())
+    private val claimedOpenCodeSessions = ConcurrentHashMap<TerminalSessionId, String>()
 
     override fun observeAll(): Flow<List<TerminalSession>> =
         entries.map { map -> map.values.map { it.session }.sortedBy { it.createdAt } }
@@ -80,6 +88,7 @@ class PtyTerminalRepository(
         claudeSettingsPath: String?,
         resumeLastSession: Boolean,
     ): TerminalSession = withContext(Dispatchers.IO) {
+        val spawnTs = System.currentTimeMillis()
         val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
         val pluginDir = if (provider == AiProvider.CLAUDE) {
             hookPluginInstaller?.ensureInstalled()
@@ -100,7 +109,41 @@ class PtyTerminalRepository(
         mutex.withLock {
             entries.value = entries.value + (session.id to Entry(session, backend))
         }
+        if (provider == AiProvider.OPENCODE && resumeSessionId == null && !resumeLastSession) {
+            resolveOpenCodeSessionId(session.id, cwd, spawnTs)
+        }
         session
+    }
+
+    private fun resolveOpenCodeSessionId(terminalId: TerminalSessionId, cwd: String, spawnTs: Long) {
+        scope.launch {
+            repeat(SESSION_ID_RESOLVE_ATTEMPTS) {
+                val db = OpenCodeDb.findDb()
+                val excluded = mutex.withLock { claimedOpenCodeSessions.values.toSet() }
+                val candidates = if (db != null) {
+                    withContext(Dispatchers.IO) { OpenCodeDb.findSessionIds(db, cwd, spawnTs, excluded) }
+                } else emptyList()
+                var joined = false
+                for (realId in candidates) {
+                    val occupy = mutex.withLock {
+                        if (!entries.value.containsKey(terminalId)) return@withLock false
+                        if (claimedOpenCodeSessions.containsValue(realId)) return@withLock true
+                        claimedOpenCodeSessions[terminalId] = realId
+                        entries.value[terminalId]?.let { entry ->
+                            entries.value = entries.value +
+                                (terminalId to entry.copy(session = entry.session.copy(aiSessionId = realId)))
+                        }
+                        false
+                    }
+                    when (occupy) {
+                        false -> { joined = true; break }
+                        true -> continue
+                    }
+                }
+                if (joined) return@launch
+                delay(SESSION_ID_RESOLVE_POLL_MS)
+            }
+        }
     }
 
     private fun buildCommand(
@@ -131,6 +174,7 @@ class PtyTerminalRepository(
 
     override suspend fun close(id: TerminalSessionId) {
         val entry = mutex.withLock {
+            claimedOpenCodeSessions.remove(id)
             val e = entries.value[id] ?: return@withLock null
             entries.value = entries.value - id
             e
@@ -146,4 +190,9 @@ class PtyTerminalRepository(
         entries.value.mapNotNull { (id, entry) ->
             if (entry.backend.isAlive) id to entry.backend.process.pid() else null
         }.toMap()
+
+    private companion object {
+        const val SESSION_ID_RESOLVE_ATTEMPTS = 15
+        const val SESSION_ID_RESOLVE_POLL_MS = 1_000L
+    }
 }

@@ -1,6 +1,5 @@
 package dev.claudeadmin.data.opencode
 
-import dev.claudeadmin.data.util.AppDirs
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.repository.AiSessionRepository
@@ -26,19 +25,7 @@ class OpenCodeSessionRepository(
     private val _sessions = MutableStateFlow<List<AiSession>>(emptyList())
     private val sessions = _sessions.asStateFlow()
 
-    private val possibleDbDirs = listOf(
-        File(AppDirs.userHome, ".local/share/opencode"),
-        File(AppDirs.userHome, ".opencode"),
-        File(AppDirs.userHome, "Library/Application Support/opencode"),
-    )
-
-    private fun findDb(): File? {
-        for (dir in possibleDbDirs) {
-            val db = File(dir, "opencode.db")
-            if (db.exists()) return db
-        }
-        return null
-    }
+    private fun findDb(): File? = OpenCodeDb.findDb()
 
     init {
         scope.launch {
