@@ -81,7 +81,7 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
     val rootContext = remember { DefaultComponentContext(lifecycle = lifecycle) }
 
     val ptyRepo = remember { koin.get<PtyTerminalRepository>() }
-    val sessionRepos = remember { koin.getAll<AiSessionRepository>() }
+    val sessionRepos = remember { koin.get<List<AiSessionRepository>>() }
 
     val root = remember {
         RootComponent(

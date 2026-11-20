@@ -15,6 +15,9 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 class OpenCodeSessionRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -30,12 +33,16 @@ class OpenCodeSessionRepository(
     init {
         scope.launch {
             while (true) {
-                val db = findDb()
-                if (db != null) {
-                    val current = querySessions(db)
-                    if (current != _sessions.value) {
-                        _sessions.value = current
+                try {
+                    val db = findDb()
+                    if (db != null) {
+                        val current = querySessions(db)
+                        if (current != _sessions.value) {
+                            _sessions.value = current
+                        }
                     }
+                } catch (t: Throwable) {
+                    println("[OpenCode] poll error: ${t.message}")
                 }
                 delay(POLL_MS)
             }
@@ -47,33 +54,33 @@ class OpenCodeSessionRepository(
     private suspend fun querySessions(dbFile: File): List<AiSession> = withContext(Dispatchers.IO) {
         runCatching {
             val sql = """
-                SELECT s.id, s.directory, s.title, s.time_updated,
-                       json_extract(p.data, '$.text') AS first_prompt
-                FROM session s
-                LEFT JOIN message m ON m.session_id = s.id
-                                   AND json_extract(m.data, '$.role') = 'user'
-                LEFT JOIN part p ON p.message_id = m.id
-                WHERE p.id = (
-                    SELECT p2.id FROM part p2
-                    JOIN message m2 ON p2.message_id = m2.id
-                    WHERE m2.session_id = s.id
-                      AND json_extract(m2.data, '$.role') = 'user'
-                    ORDER BY m2.time_created ASC, p2.time_created ASC
-                    LIMIT 1
-                )
-                ORDER BY s.time_updated DESC;
+                SELECT id, directory, title, time_updated
+                FROM session
+                ORDER BY time_updated DESC;
             """.trimIndent()
 
             val process = ProcessBuilder("sqlite3", "-json", dbFile.absolutePath, sql)
                 .redirectError(ProcessBuilder.Redirect.DISCARD)
                 .start()
 
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
-            process.waitFor()
-
-            if (output.isBlank()) return@withContext emptyList()
-
-            parseJsonArray(output)
+            try {
+                val reader = BufferedReader(InputStreamReader(process.inputStream))
+                val output = CompletableFuture.supplyAsync { reader.use { it.readText() } }
+                val json = try {
+                    output.get(QUERY_TIMEOUT_SEC, TimeUnit.SECONDS)
+                } catch (e: TimeoutException) {
+                    process.destroyForcibly()
+                    return@withContext emptyList()
+                }
+                process.destroy()
+                if (json.isBlank()) {
+                    emptyList()
+                } else {
+                    parseJsonArray(json)
+                }
+            } finally {
+                if (process.isAlive) process.destroyForcibly()
+            }
         }.getOrElse {
             println("[OpenCode] Query error: ${it.message}")
             emptyList()
@@ -87,14 +94,12 @@ class OpenCodeSessionRepository(
             val id = extractJsonString(item, "id") ?: continue
             val cwd = extractJsonString(item, "directory") ?: ""
             val title = extractJsonString(item, "title") ?: ""
-            val prompt = extractJsonString(item, "first_prompt")
             val lastModified = extractJsonLong(item, "time_updated") ?: 0L
-            val preview = if (!prompt.isNullOrBlank()) prompt else title
             sessions.add(
                 AiSession(
                     id = id,
                     cwd = cwd,
-                    preview = preview,
+                    preview = title,
                     lastModified = lastModified,
                     provider = AiProvider.OPENCODE,
                 ),
@@ -189,5 +194,6 @@ class OpenCodeSessionRepository(
 
     private companion object {
         const val POLL_MS = 2_000L
+        const val QUERY_TIMEOUT_SEC = 10L
     }
 }
