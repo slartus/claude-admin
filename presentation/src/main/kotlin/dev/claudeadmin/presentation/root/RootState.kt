@@ -24,6 +24,7 @@ data class RootState(
     val gitRootPrompts: List<ProjectId> = emptyList(),
     val savedSessionsByProject: Map<ProjectId, List<AiSession>> = emptyMap(),
     val openCodeSessionsByProject: Map<ProjectId, List<AiSession>> = emptyMap(),
+    val claudeSessionsByProject: Map<ProjectId, List<AiSession>> = emptyMap(),
     val orphanSessionsByCwd: Map<String, List<AiSession>> = emptyMap(),
     val sessionPreviewById: Map<String, String> = emptyMap(),
     val pendingTerminalProvider: ProjectId? = null,

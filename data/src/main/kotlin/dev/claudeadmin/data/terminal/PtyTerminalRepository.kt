@@ -157,10 +157,10 @@ class PtyTerminalRepository(
         AiProvider.CLAUDE -> {
             val settings = if (claudeSettingsPath != null) " --settings $claudeSettingsPath" else ""
             val plugin = if (hookPluginDir != null) " --plugin-dir \"$hookPluginDir\"" else ""
-            if (resumeSessionId != null) {
-                "${provider.cliCommand}$settings$plugin --resume $resumeSessionId"
-            } else {
-                "${provider.cliCommand}$settings$plugin --session-id=$aiSessionId"
+            when {
+                resumeLastSession -> "${provider.cliCommand}$settings$plugin --continue"
+                resumeSessionId != null -> "${provider.cliCommand}$settings$plugin --resume $resumeSessionId"
+                else -> "${provider.cliCommand}$settings$plugin --session-id=$aiSessionId"
             }
         }
         AiProvider.OPENCODE -> {

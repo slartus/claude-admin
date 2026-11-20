@@ -44,12 +44,17 @@ import dev.claudeadmin.domain.model.ClaudeUserSettings
 fun TerminalProviderDialog(
     claudeUserSettings: List<ClaudeUserSettings>,
     openCodeSessions: List<AiSession> = emptyList(),
+    claudeSessions: List<AiSession> = emptyList(),
     showOpenCode: Boolean = true,
     onResult: (AiProvider, claudeSettingsPath: String?) -> Unit,
     onContinueLastOpenCode: () -> Unit = {},
     onContinueOpenCodeSession: (String) -> Unit = {},
+    onContinueLastClaude: (claudeSettingsPath: String?) -> Unit = {},
+    onContinueClaudeSession: (claudeSettingsPath: String?, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
 ) {
+    var claudeFlagsSettingsPath by remember { mutableStateOf<String?>(null) }
+    var showClaudeFlagsDialog by remember { mutableStateOf(false) }
     var showFlagsDialog by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -62,20 +67,28 @@ fun TerminalProviderDialog(
                     .fillMaxWidth()
                     .padding(20.dp),
             ) {
-                ProviderRow(
+                FlagsProviderRow(
                     provider = AiProvider.CLAUDE,
-                    displayName = AiProvider.CLAUDE.displayName,
-                    onClick = { onResult(AiProvider.CLAUDE, null) },
+                    onLaunch = { onResult(AiProvider.CLAUDE, null) },
+                    onShowFlags = {
+                        claudeFlagsSettingsPath = null
+                        showClaudeFlagsDialog = true
+                    },
                 )
                 claudeUserSettings.forEach { settings ->
-                    ProviderRow(
+                    FlagsProviderRow(
                         provider = AiProvider.CLAUDE,
                         displayName = "${AiProvider.CLAUDE.displayName} · ${settings.name}",
-                        onClick = { onResult(AiProvider.CLAUDE, settings.path) },
+                        onLaunch = { onResult(AiProvider.CLAUDE, settings.path) },
+                        onShowFlags = {
+                            claudeFlagsSettingsPath = settings.path
+                            showClaudeFlagsDialog = true
+                        },
                     )
                 }
                 if (showOpenCode) {
-                    OpenCodeRow(
+                    FlagsProviderRow(
+                        provider = AiProvider.OPENCODE,
                         onLaunch = { onResult(AiProvider.OPENCODE, null) },
                         onShowFlags = { showFlagsDialog = true },
                     )
@@ -84,8 +97,19 @@ fun TerminalProviderDialog(
         }
     }
 
+    if (showClaudeFlagsDialog) {
+        ProviderFlagsDialog(
+            provider = AiProvider.CLAUDE,
+            sessions = claudeSessions,
+            onContinueLast = { onContinueLastClaude(claudeFlagsSettingsPath) },
+            onContinueSession = { sid -> onContinueClaudeSession(claudeFlagsSettingsPath, sid) },
+            onDismiss = { showClaudeFlagsDialog = false },
+        )
+    }
+
     if (showFlagsDialog) {
-        OpenCodeLaunchDialog(
+        ProviderFlagsDialog(
+            provider = AiProvider.OPENCODE,
             sessions = openCodeSessions,
             onContinueLast = onContinueLastOpenCode,
             onContinueSession = onContinueOpenCodeSession,
@@ -95,30 +119,9 @@ fun TerminalProviderDialog(
 }
 
 @Composable
-private fun ProviderRow(
+private fun FlagsProviderRow(
     provider: AiProvider,
-    displayName: String,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ProviderIcon(provider)
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = displayName,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun OpenCodeRow(
+    displayName: String = provider.displayName,
     onLaunch: () -> Unit,
     onShowFlags: () -> Unit,
 ) {
@@ -129,10 +132,10 @@ private fun OpenCodeRow(
             .padding(vertical = 4.dp, horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ProviderIcon(AiProvider.OPENCODE)
+        ProviderIcon(provider)
         Spacer(Modifier.width(10.dp))
         Text(
-            text = AiProvider.OPENCODE.displayName,
+            text = displayName,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
@@ -173,16 +176,18 @@ private fun providerColors(provider: AiProvider): Pair<Color, Color> = when (pro
         MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f) to MaterialTheme.colorScheme.tertiary
 }
 
-private enum class OpenCodeFlagStep { MODE, SESSIONS }
+private enum class FlagsStep { MODE, SESSIONS }
 
 @Composable
-private fun OpenCodeLaunchDialog(
+private fun ProviderFlagsDialog(
+    provider: AiProvider,
     sessions: List<AiSession>,
     onContinueLast: () -> Unit,
     onContinueSession: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var step by remember { mutableStateOf(OpenCodeFlagStep.MODE) }
+    var step by remember { mutableStateOf(FlagsStep.MODE) }
+    val specificFlag = if (provider == AiProvider.CLAUDE) "resume" else "session"
     Dialog(onDismissRequest = onDismiss) {
         Card(
             colors = CardDefaults.cardColors(
@@ -195,23 +200,23 @@ private fun OpenCodeLaunchDialog(
                     .padding(20.dp),
             ) {
                 when (step) {
-                    OpenCodeFlagStep.MODE -> {
+                    FlagsStep.MODE -> {
                         Text(
-                            text = "Launch ${AiProvider.OPENCODE.displayName}",
+                            text = "Launch ${provider.displayName}",
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Spacer(Modifier.size(8.dp))
                         LaunchOptionRow(
                             title = "Continue last session",
-                            subtitle = "${AiProvider.OPENCODE.cliCommand} --continue",
+                            subtitle = "${provider.cliCommand} --continue",
                             icon = Icons.Default.History,
                             onClick = onContinueLast,
                         )
                         LaunchOptionRow(
                             title = "Continue specific session",
-                            subtitle = "${AiProvider.OPENCODE.cliCommand} --session <id>",
+                            subtitle = "${provider.cliCommand} --$specificFlag <id>",
                             icon = Icons.Default.List,
-                            onClick = { step = OpenCodeFlagStep.SESSIONS },
+                            onClick = { step = FlagsStep.SESSIONS },
                         )
                         Spacer(Modifier.size(8.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
@@ -220,7 +225,7 @@ private fun OpenCodeLaunchDialog(
                         }
                     }
 
-                    OpenCodeFlagStep.SESSIONS -> {
+                    FlagsStep.SESSIONS -> {
                         Text(
                             text = "Select session",
                             style = MaterialTheme.typography.titleSmall,
@@ -228,7 +233,7 @@ private fun OpenCodeLaunchDialog(
                         Spacer(Modifier.size(8.dp))
                         if (sessions.isEmpty()) {
                             Text(
-                                text = "No ${AiProvider.OPENCODE.displayName} sessions found for this project.",
+                                text = "No ${provider.displayName} sessions found for this project.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 8.dp),
@@ -249,7 +254,7 @@ private fun OpenCodeLaunchDialog(
                         }
                         Spacer(Modifier.size(8.dp))
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            TextButton(onClick = { step = OpenCodeFlagStep.MODE }) { Text("Back") }
+                            TextButton(onClick = { step = FlagsStep.MODE }) { Text("Back") }
                             Spacer(Modifier.weight(1f))
                             TextButton(onClick = onDismiss) { Text("Cancel") }
                         }

@@ -143,12 +143,16 @@ class RootComponent(
         val openCodeByProject = tracked
             .mapValues { (_, v) -> v.filter { it.provider == AiProvider.OPENCODE } }
             .filterValues { it.isNotEmpty() }
+        val claudeByProject = tracked
+            .mapValues { (_, v) -> v.filter { it.provider == AiProvider.CLAUDE } }
+            .filterValues { it.isNotEmpty() }
         val previewById = sessions.associate { it.id to it.preview }
         _state.update {
             it.copy(
                 projects = projects,
                 savedSessionsByProject = cappedTracked,
                 openCodeSessionsByProject = openCodeByProject,
+                claudeSessionsByProject = claudeByProject,
                 orphanSessionsByCwd = cappedOrphans,
                 sessionPreviewById = previewById,
             )
@@ -276,6 +280,21 @@ class RootComponent(
                 id,
                 provider = AiProvider.OPENCODE,
                 resumeSessionId = lastSessionId,
+                resumeLastSession = true,
+            ).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(id, session.id), pendingTerminalProvider = null) }
+            }.onFailure {
+                _state.update { it.copy(pendingTerminalProvider = null) }
+            }
+        }
+    }
+
+    fun openClaudeLastSession(id: ProjectId, claudeSettingsPath: String? = null) {
+        scope.launch {
+            openTerminal.invoke(
+                id,
+                provider = AiProvider.CLAUDE,
+                claudeSettingsPath = claudeSettingsPath,
                 resumeLastSession = true,
             ).onSuccess { session ->
                 _state.update { it.copy(selection = Selection.Terminal(id, session.id), pendingTerminalProvider = null) }

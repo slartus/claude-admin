@@ -102,12 +102,17 @@ fun RootScreen(
         TerminalProviderDialog(
             claudeUserSettings = claudeUserSettings,
             openCodeSessions = state.openCodeSessionsByProject[projectId].orEmpty(),
+            claudeSessions = state.claudeSessionsByProject[projectId].orEmpty(),
             onResult = { provider, settingsPath ->
                 component.openTerminal(projectId, provider, settingsPath)
             },
             onContinueLastOpenCode = { component.openOpenCodeLastSession(projectId) },
             onContinueOpenCodeSession = { sessionId ->
                 component.resumeAiSession(projectId, sessionId, AiProvider.OPENCODE)
+            },
+            onContinueLastClaude = { settingsPath -> component.openClaudeLastSession(projectId, settingsPath) },
+            onContinueClaudeSession = { settingsPath, sessionId ->
+                component.resumeAiSession(projectId, sessionId, AiProvider.CLAUDE, settingsPath)
             },
             onDismiss = { component.cancelOpenTerminal() },
         )
