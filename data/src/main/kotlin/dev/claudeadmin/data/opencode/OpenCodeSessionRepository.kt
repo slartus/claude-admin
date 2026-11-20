@@ -15,9 +15,7 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 class OpenCodeSessionRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -63,23 +61,40 @@ class OpenCodeSessionRepository(
                 .redirectError(ProcessBuilder.Redirect.DISCARD)
                 .start()
 
+            val output = StringBuilder()
+            val readerThread = Thread {
+                try {
+                    BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                        val buf = CharArray(8192)
+                        while (true) {
+                            val n = reader.read(buf)
+                            if (n < 0) break
+                            output.append(buf, 0, n)
+                        }
+                    }
+                } catch (_: java.io.IOException) {
+                }
+            }.apply { isDaemon = true }
+            readerThread.start()
+
             try {
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                val output = CompletableFuture.supplyAsync { reader.use { it.readText() } }
-                val json = try {
-                    output.get(QUERY_TIMEOUT_SEC, TimeUnit.SECONDS)
-                } catch (e: TimeoutException) {
-                    process.destroyForcibly()
-                    return@withContext emptyList()
-                }
-                process.destroy()
-                if (json.isBlank()) {
-                    emptyList()
-                } else {
-                    parseJsonArray(json)
-                }
-            } finally {
-                if (process.isAlive) process.destroyForcibly()
+                readerThread.join(QUERY_TIMEOUT_SEC * 1000L)
+            } catch (_: InterruptedException) {
+                process.destroyForcibly()
+                return@withContext emptyList()
+            }
+
+            val done = process.waitFor(QUERY_TIMEOUT_SEC, TimeUnit.SECONDS)
+            if (!done) {
+                process.destroyForcibly()
+                return@withContext emptyList()
+            }
+
+            val json = output.toString()
+            if (json.isBlank()) {
+                emptyList()
+            } else {
+                parseJsonArray(json)
             }
         }.getOrElse {
             println("[OpenCode] Query error: ${it.message}")
@@ -194,6 +209,6 @@ class OpenCodeSessionRepository(
 
     private companion object {
         const val POLL_MS = 2_000L
-        const val QUERY_TIMEOUT_SEC = 10L
+        const val QUERY_TIMEOUT_SEC = 120L
     }
 }
