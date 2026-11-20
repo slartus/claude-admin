@@ -32,13 +32,15 @@ class OpenCodeSessionRepository(
         scope.launch {
             while (true) {
                 try {
-                    val db = findDb()
-                    if (db != null) {
+                    withContext(Dispatchers.IO) {
+                        val db = findDb() ?: return@withContext
                         val current = querySessions(db)
                         if (current != _sessions.value) {
                             _sessions.value = current
                         }
                     }
+                } catch (t: kotlinx.coroutines.CancellationException) {
+                    throw t
                 } catch (t: Throwable) {
                     println("[OpenCode] poll error: ${t.message}")
                 }
@@ -49,8 +51,8 @@ class OpenCodeSessionRepository(
 
     override fun observeAll(): Flow<List<AiSession>> = sessions
 
-    private suspend fun querySessions(dbFile: File): List<AiSession> = withContext(Dispatchers.IO) {
-        runCatching {
+    private fun querySessions(dbFile: File): List<AiSession> {
+        return runCatching {
             val sql = """
                 SELECT id, directory, title, time_updated
                 FROM session
@@ -60,7 +62,6 @@ class OpenCodeSessionRepository(
             val process = ProcessBuilder("sqlite3", "-json", dbFile.absolutePath, sql)
                 .redirectError(ProcessBuilder.Redirect.DISCARD)
                 .start()
-
             val output = StringBuilder()
             val readerThread = Thread {
                 try {
@@ -81,21 +82,17 @@ class OpenCodeSessionRepository(
                 readerThread.join(QUERY_TIMEOUT_SEC * 1000L)
             } catch (_: InterruptedException) {
                 process.destroyForcibly()
-                return@withContext emptyList()
+                return emptyList()
             }
 
             val done = process.waitFor(QUERY_TIMEOUT_SEC, TimeUnit.SECONDS)
             if (!done) {
                 process.destroyForcibly()
-                return@withContext emptyList()
+                return emptyList()
             }
 
             val json = output.toString()
-            if (json.isBlank()) {
-                emptyList()
-            } else {
-                parseJsonArray(json)
-            }
+            if (json.isBlank()) emptyList() else parseJsonArray(json)
         }.getOrElse {
             println("[OpenCode] Query error: ${it.message}")
             emptyList()
