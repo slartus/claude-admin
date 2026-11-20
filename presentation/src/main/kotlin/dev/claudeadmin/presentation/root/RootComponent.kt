@@ -140,11 +140,15 @@ class RootComponent(
         }
         val cappedTracked = tracked.mapValues { (_, v) -> v.take(SESSIONS_PER_BUCKET) }
         val cappedOrphans = orphans.mapValues { (_, v) -> v.take(SESSIONS_PER_BUCKET) }
+        val openCodeByProject = tracked
+            .mapValues { (_, v) -> v.filter { it.provider == AiProvider.OPENCODE } }
+            .filterValues { it.isNotEmpty() }
         val previewById = sessions.associate { it.id to it.preview }
         _state.update {
             it.copy(
                 projects = projects,
                 savedSessionsByProject = cappedTracked,
+                openCodeSessionsByProject = openCodeByProject,
                 orphanSessionsByCwd = cappedOrphans,
                 sessionPreviewById = previewById,
             )
@@ -265,6 +269,22 @@ class RootComponent(
         }
     }
 
+    fun openOpenCodeLastSession(id: ProjectId) {
+        val lastSessionId = _state.value.openCodeSessionsByProject[id]?.firstOrNull()?.id
+        scope.launch {
+            openTerminal.invoke(
+                id,
+                provider = AiProvider.OPENCODE,
+                resumeSessionId = lastSessionId,
+                resumeLastSession = true,
+            ).onSuccess { session ->
+                _state.update { it.copy(selection = Selection.Terminal(id, session.id), pendingTerminalProvider = null) }
+            }.onFailure {
+                _state.update { it.copy(pendingTerminalProvider = null) }
+            }
+        }
+    }
+
     fun cancelOpenTerminal() {
         _state.update { it.copy(pendingTerminalProvider = null) }
     }
@@ -280,7 +300,7 @@ class RootComponent(
     fun resumeAiSession(projectId: ProjectId, sessionId: String, provider: AiProvider, claudeSettingsPath: String? = null) {
         scope.launch {
             openTerminal.invoke(projectId, resumeSessionId = sessionId, provider = provider, claudeSettingsPath = claudeSettingsPath).onSuccess { session ->
-                _state.update { it.copy(selection = Selection.Terminal(projectId, session.id), pendingResume = null) }
+                _state.update { it.copy(selection = Selection.Terminal(projectId, session.id), pendingResume = null, pendingTerminalProvider = null) }
             }
         }
     }
@@ -288,7 +308,7 @@ class RootComponent(
     fun resumeOrphanSession(cwd: String, sessionId: String, provider: AiProvider, claudeSettingsPath: String? = null) {
         scope.launch {
             openTerminal.openDetached(cwd, resumeSessionId = sessionId, provider = provider, claudeSettingsPath = claudeSettingsPath).onSuccess { session ->
-                _state.update { it.copy(selection = Selection.Terminal(null, session.id), pendingResume = null) }
+                _state.update { it.copy(selection = Selection.Terminal(null, session.id), pendingResume = null, pendingTerminalProvider = null) }
             }
         }
     }

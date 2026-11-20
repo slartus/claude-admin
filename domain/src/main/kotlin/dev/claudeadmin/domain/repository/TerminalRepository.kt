@@ -16,6 +16,7 @@ interface TerminalRepository {
         resumeSessionId: String? = null,
         provider: AiProvider,
         claudeSettingsPath: String? = null,
+        resumeLastSession: Boolean = false,
     ): TerminalSession
     suspend fun openDetached(
         cwd: String,
@@ -23,6 +24,7 @@ interface TerminalRepository {
         resumeSessionId: String? = null,
         provider: AiProvider,
         claudeSettingsPath: String? = null,
+        resumeLastSession: Boolean = false,
     ): TerminalSession
     suspend fun close(id: TerminalSessionId)
 }

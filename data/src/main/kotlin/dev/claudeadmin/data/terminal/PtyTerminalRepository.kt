@@ -43,6 +43,7 @@ class PtyTerminalRepository(
         resumeSessionId: String?,
         provider: AiProvider,
         claudeSettingsPath: String?,
+        resumeLastSession: Boolean,
     ): TerminalSession = spawn(
         projectId = project.id,
         cwd = project.path,
@@ -50,6 +51,7 @@ class PtyTerminalRepository(
         resumeSessionId = resumeSessionId,
         provider = provider,
         claudeSettingsPath = claudeSettingsPath,
+        resumeLastSession = resumeLastSession,
     )
 
     override suspend fun openDetached(
@@ -58,6 +60,7 @@ class PtyTerminalRepository(
         resumeSessionId: String?,
         provider: AiProvider,
         claudeSettingsPath: String?,
+        resumeLastSession: Boolean,
     ): TerminalSession = spawn(
         projectId = null,
         cwd = cwd,
@@ -65,6 +68,7 @@ class PtyTerminalRepository(
         resumeSessionId = resumeSessionId,
         provider = provider,
         claudeSettingsPath = claudeSettingsPath,
+        resumeLastSession = resumeLastSession,
     )
 
     private suspend fun spawn(
@@ -74,13 +78,14 @@ class PtyTerminalRepository(
         resumeSessionId: String?,
         provider: AiProvider,
         claudeSettingsPath: String?,
+        resumeLastSession: Boolean,
     ): TerminalSession = withContext(Dispatchers.IO) {
         val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
         val pluginDir = if (provider == AiProvider.CLAUDE) {
             hookPluginInstaller?.ensureInstalled()
             hookPluginInstaller?.pluginDir?.absolutePath
         } else null
-        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath, pluginDir)
+        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath, pluginDir, resumeLastSession)
         val backend = PtyFactory.spawn(cwd, fullCommand, claudeSettingsPath)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
@@ -104,6 +109,7 @@ class PtyTerminalRepository(
         aiSessionId: String,
         claudeSettingsPath: String?,
         hookPluginDir: String?,
+        resumeLastSession: Boolean,
     ): String = when (provider) {
         AiProvider.CLAUDE -> {
             val settings = if (claudeSettingsPath != null) " --settings $claudeSettingsPath" else ""
@@ -115,10 +121,10 @@ class PtyTerminalRepository(
             }
         }
         AiProvider.OPENCODE -> {
-            if (resumeSessionId != null) {
-                "${provider.cliCommand} --session $resumeSessionId"
-            } else {
-                provider.cliCommand
+            when {
+                resumeLastSession -> "${provider.cliCommand} --continue"
+                resumeSessionId != null -> "${provider.cliCommand} --session $resumeSessionId"
+                else -> provider.cliCommand
             }
         }
     }
