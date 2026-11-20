@@ -22,4 +22,8 @@ object AppDirs {
     val userOpenCodeConfigDir: File get() = File(userHome, ".config/opencode")
 
     val userOpenCodeAltDir: File get() = File(userHome, ".opencode")
+
+    val statusLogFile: File get() = File(root, "status.jsonl")
+
+    val hookPluginDir: File get() = File(root, "hook-plugin")
 }

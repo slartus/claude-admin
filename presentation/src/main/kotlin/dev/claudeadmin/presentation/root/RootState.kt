@@ -2,6 +2,7 @@ package dev.claudeadmin.presentation.root
 
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
+import dev.claudeadmin.domain.model.AgentStatusEntry
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
@@ -30,6 +31,7 @@ data class RootState(
     val searchInProgress: Boolean = false,
     val searchResults: List<SessionSearchHit> = emptyList(),
     val showOnlyActive: Boolean = false,
+    val agentStatusBySessionId: Map<String, AgentStatusEntry> = emptyMap(),
 ) {
 
     val isSearchActive: Boolean get() = searchQuery.isNotBlank()

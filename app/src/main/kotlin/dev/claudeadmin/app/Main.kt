@@ -28,6 +28,8 @@ import dev.claudeadmin.app.ui.util.openInDefaultApp
 import dev.claudeadmin.app.ui.util.saveWindowState
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
 import dev.claudeadmin.data.util.CrashReporter
+import dev.claudeadmin.domain.model.AgentStatus
+import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -53,6 +55,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.getKoin
+import java.awt.Taskbar
 import java.io.File
 
 @OptIn(FlowPreview::class)
@@ -102,6 +105,7 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
             toggleGroupCollapsedUseCase = koin.get<ToggleGroupCollapsedUseCase>(),
             moveProjectToGroupUseCase = koin.get<MoveProjectToGroupUseCase>(),
             searchSessionsUseCase = koin.get<SearchSessionsUseCase>(),
+            agentStatusRepository = koin.get<AgentStatusRepository>(),
         )
     }
 
@@ -121,6 +125,19 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
 
     val rootState by root.state.collectAsState()
     var confirmExit by remember { mutableStateOf(false) }
+
+    LaunchedEffect(rootState.agentStatusBySessionId, rootState.terminals) {
+        val waiting = rootState.terminals.count { session ->
+            val sid = session.aiSessionId ?: return@count false
+            rootState.agentStatusBySessionId[sid]?.status == AgentStatus.WAITING
+        }
+        runCatching {
+            val taskbar = Taskbar.getTaskbar()
+            if (taskbar.isSupported(Taskbar.Feature.ICON_BADGE_TEXT)) {
+                taskbar.setIconBadge(if (waiting > 0) waiting.toString() else null)
+            }
+        }
+    }
 
     val exit = {
         saveWindowState(windowState)

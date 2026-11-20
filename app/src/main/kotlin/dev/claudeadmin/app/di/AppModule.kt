@@ -4,6 +4,8 @@ import dev.claudeadmin.data.agent.FileAgentRepository
 import dev.claudeadmin.data.claudemd.FileClaudeMdRepository
 import dev.claudeadmin.data.command.FileCommandRepository
 import dev.claudeadmin.data.git.FileGitRepository
+import dev.claudeadmin.data.hooks.FileAgentStatusRepository
+import dev.claudeadmin.data.hooks.FileHookPluginInstaller
 import dev.claudeadmin.data.mcp.FileMcpServerRepository
 import dev.claudeadmin.data.opencode.FileOpenCodeMdRepository
 import dev.claudeadmin.data.opencode.FileOpenCodeSettingsRepository
@@ -20,7 +22,9 @@ import dev.claudeadmin.data.settings.FileClaudeSettingsRepository
 import dev.claudeadmin.data.settings.FileClaudeUserSettingsRepository
 import dev.claudeadmin.data.skill.FileSkillRepository
 import dev.claudeadmin.data.terminal.PtyTerminalRepository
+import dev.claudeadmin.data.util.AppDirs
 import dev.claudeadmin.domain.repository.AgentRepository
+import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.ClaudeMdRepository
 import dev.claudeadmin.domain.repository.ClaudeSessionRepository
@@ -114,8 +118,16 @@ val appModule = module {
     single<OpenCodeMdRepository> { FileOpenCodeMdRepository() }
     single<OpenCodeSettingsRepository> { FileOpenCodeSettingsRepository() }
 
-    single<PtyTerminalRepository> { PtyTerminalRepository() }
+    single<PtyTerminalRepository> { PtyTerminalRepository(hookPluginInstaller = get()) }
     single<TerminalRepository> { get<PtyTerminalRepository>() }
+
+    single<FileHookPluginInstaller> { FileHookPluginInstaller(AppDirs.hookPluginDir) }
+    single<AgentStatusRepository> {
+        FileAgentStatusRepository(
+            file = AppDirs.statusLogFile,
+            scope = get(qualifier = org.koin.core.qualifier.named("AppScope")),
+        )
+    }
 
     factory { ObserveProjectsUseCase(get()) }
     factory { ObserveTerminalsUseCase(get()) }

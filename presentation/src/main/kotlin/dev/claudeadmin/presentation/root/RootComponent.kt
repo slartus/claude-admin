@@ -8,6 +8,7 @@ import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
+import dev.claudeadmin.domain.repository.AgentStatusRepository
 import dev.claudeadmin.domain.repository.AiSessionRepository
 import dev.claudeadmin.domain.repository.GitRepository
 import dev.claudeadmin.domain.usecase.AddProjectUseCase
@@ -64,6 +65,7 @@ class RootComponent(
     private val toggleGroupCollapsedUseCase: ToggleGroupCollapsedUseCase,
     private val moveProjectToGroupUseCase: MoveProjectToGroupUseCase,
     private val searchSessionsUseCase: SearchSessionsUseCase,
+    private val agentStatusRepository: AgentStatusRepository,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -90,6 +92,7 @@ class RootComponent(
         }
         scope.launch { observeTerminals.all().collect { list -> _state.update { it.copy(terminals = list) } } }
         scope.launch { observeGroupsUseCase().collect { list -> _state.update { it.copy(groups = list) } } }
+        scope.launch { agentStatusRepository.observe().collect { map -> _state.update { it.copy(agentStatusBySessionId = map) } } }
 
         val sessionFlows = sessionRepositories.map { it.observeAll() }
         scope.launch {

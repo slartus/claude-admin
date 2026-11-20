@@ -1,5 +1,11 @@
 package dev.claudeadmin.app.ui.sidebar
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.TooltipArea
@@ -77,6 +83,8 @@ import org.jetbrains.skia.Image as SkiaImage
 import org.koin.compose.koinInject
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
+import dev.claudeadmin.domain.model.AgentStatus
+import dev.claudeadmin.domain.model.AgentStatusEntry
 import dev.claudeadmin.domain.model.GitStatus
 import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
@@ -239,6 +247,11 @@ fun Sidebar(
                                 },
                         ) {
                             val terminals = terminalsByProject[project.id].orEmpty()
+                            val aggregate = aggregateStatus(
+                                terminals.mapNotNull { t ->
+                                    t.aiSessionId?.let { state.agentStatusBySessionId[it]?.status }
+                                },
+                            )
                             ProjectRow(
                                 project = project,
                                 depth = row.depth,
@@ -274,16 +287,20 @@ fun Sidebar(
                                         onDragCancel = { drag = null },
                                     )
                                 },
+                                aggregateStatus = aggregate,
                             )
                             terminals.forEach { session ->
                                 val displayTitle = session.aiSessionId
                                     ?.let { state.sessionPreviewById[it] }
                                     ?: session.title
+                                val statusEntry = session.aiSessionId?.let { state.agentStatusBySessionId[it] }
                                 TerminalRow(
                                     title = displayTitle,
                                     provider = session.aiProvider,
                                     depth = row.depth,
                                     selected = (state.selection as? Selection.Terminal)?.terminalId == session.id,
+                                    status = statusEntry?.status,
+                                    tooltip = statusTooltip(statusEntry),
                                     onClick = { onSelectTerminal(session.projectId, session.id) },
                                     onClose = { pendingClose = session },
                                 )
@@ -357,6 +374,7 @@ fun Sidebar(
                             )
                             is OrphanRow.Session -> {
                                 val runningTerminal = detachedBySession[row.session.id]
+                                val statusEntry = state.agentStatusBySessionId[row.session.id]
                                 OrphanSessionRow(
                                     session = row.session,
                                     running = runningTerminal != null,
@@ -366,6 +384,8 @@ fun Sidebar(
                                     } else {
                                         row.session.preview
                                     },
+                                    status = if (runningTerminal != null) statusEntry?.status else null,
+                                    tooltip = if (runningTerminal != null) statusTooltip(statusEntry) else null,
                                     onClick = {
                                         if (runningTerminal != null) {
                                             onSelectTerminal(null, runningTerminal.id)
@@ -614,6 +634,7 @@ private fun ProjectRow(
     onRequestOpenTerminal: () -> Unit,
     onMove: () -> Unit,
     dragHandleModifier: Modifier,
+    aggregateStatus: AgentStatus?,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val bg = when {
@@ -652,6 +673,7 @@ private fun ProjectRow(
                 if (git != null) GitBranchLabel(git)
             }
         }
+        StatusSlot(status = aggregateStatus, tooltip = waitingTooltip(aggregateStatus))
         IconButton(onClick = onRequestOpenTerminal) {
             Icon(Icons.Default.Terminal, contentDescription = "Open terminal", modifier = Modifier.size(18.dp))
         }
@@ -671,6 +693,71 @@ private fun ProjectRow(
                     onClick = { menuOpen = false; onRemove() },
                 )
             }
+        }
+    }
+}
+
+private fun aggregateStatus(statuses: List<AgentStatus?>): AgentStatus? {
+    if (statuses.isEmpty()) return null
+    return when {
+        AgentStatus.WAITING in statuses -> AgentStatus.WAITING
+        AgentStatus.WORKING in statuses -> AgentStatus.WORKING
+        else -> AgentStatus.IDLE
+    }
+}
+
+private fun waitingTooltip(status: AgentStatus?): String? =
+    if (status == AgentStatus.WAITING) "Claude is waiting for your action" else null
+
+private fun statusTooltip(entry: AgentStatusEntry?): String? {
+    if (entry?.status != AgentStatus.WAITING) return null
+    return entry.message
+        ?: entry.toolName?.let { "Claude needs permission: $it" }
+        ?: "Claude is waiting for your action"
+}
+
+@Composable
+private fun StatusDot(status: AgentStatus?) {
+    if (status == null) return
+    val baseColor = when (status) {
+        AgentStatus.WORKING -> MaterialTheme.colorScheme.primary
+        AgentStatus.WAITING -> Color(0xFFFFB300)
+        AgentStatus.IDLE -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val alpha = when (status) {
+        AgentStatus.WAITING -> {
+            val transition = rememberInfiniteTransition(label = "waiting-pulse")
+            transition.animateFloat(
+                initialValue = 0.4f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 700, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "waiting-alpha",
+            ).value
+        }
+        else -> 1f
+    }
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(baseColor.copy(alpha = alpha)),
+    )
+}
+
+@Composable
+private fun StatusSlot(status: AgentStatus?, tooltip: String?) {
+    if (status == null) return
+    Box(
+        modifier = Modifier.size(14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (tooltip != null) {
+            HoverTooltip(text = tooltip) { StatusDot(status) }
+        } else {
+            StatusDot(status)
         }
     }
 }
@@ -711,6 +798,8 @@ private fun TerminalRow(
     provider: AiProvider,
     depth: Int,
     selected: Boolean,
+    status: AgentStatus?,
+    tooltip: String?,
     onClick: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -733,6 +822,7 @@ private fun TerminalRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        StatusSlot(status = status, tooltip = tooltip)
         IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
             Icon(Icons.Default.Close, contentDescription = "Close terminal", modifier = Modifier.size(14.dp))
         }
@@ -828,6 +918,8 @@ private fun OrphanSessionRow(
     running: Boolean,
     selected: Boolean,
     displayText: String,
+    status: AgentStatus?,
+    tooltip: String?,
     onClick: () -> Unit,
     onClose: (() -> Unit)?,
 ) {
@@ -862,6 +954,7 @@ private fun OrphanSessionRow(
             )
         }
         Spacer(Modifier.width(6.dp))
+        StatusSlot(status = status, tooltip = tooltip)
         if (running) {
             if (onClose != null) {
                 IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {

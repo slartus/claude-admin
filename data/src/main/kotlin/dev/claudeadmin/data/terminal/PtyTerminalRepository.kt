@@ -1,6 +1,7 @@
 package dev.claudeadmin.data.terminal
 
 import com.jediterm.terminal.TtyConnector
+import dev.claudeadmin.data.hooks.FileHookPluginInstaller
 import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
@@ -16,7 +17,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-class PtyTerminalRepository : TerminalRepository {
+class PtyTerminalRepository(
+    private val hookPluginInstaller: FileHookPluginInstaller? = null,
+) : TerminalRepository {
 
     private data class Entry(val session: TerminalSession, val backend: PtyBackend)
 
@@ -73,7 +76,11 @@ class PtyTerminalRepository : TerminalRepository {
         claudeSettingsPath: String?,
     ): TerminalSession = withContext(Dispatchers.IO) {
         val aiSessionId = resumeSessionId ?: UUID.randomUUID().toString()
-        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath)
+        val pluginDir = if (provider == AiProvider.CLAUDE) {
+            hookPluginInstaller?.ensureInstalled()
+            hookPluginInstaller?.pluginDir?.absolutePath
+        } else null
+        val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath, pluginDir)
         val backend = PtyFactory.spawn(cwd, fullCommand, claudeSettingsPath)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
@@ -96,13 +103,15 @@ class PtyTerminalRepository : TerminalRepository {
         resumeSessionId: String?,
         aiSessionId: String,
         claudeSettingsPath: String?,
+        hookPluginDir: String?,
     ): String = when (provider) {
         AiProvider.CLAUDE -> {
             val settings = if (claudeSettingsPath != null) " --settings $claudeSettingsPath" else ""
+            val plugin = if (hookPluginDir != null) " --plugin-dir \"$hookPluginDir\"" else ""
             if (resumeSessionId != null) {
-                "${provider.cliCommand}$settings --resume $resumeSessionId"
+                "${provider.cliCommand}$settings$plugin --resume $resumeSessionId"
             } else {
-                "${provider.cliCommand}$settings --session-id=$aiSessionId"
+                "${provider.cliCommand}$settings$plugin --session-id=$aiSessionId"
             }
         }
         AiProvider.OPENCODE -> {
