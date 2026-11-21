@@ -34,6 +34,8 @@ data class RootState(
     val searchResults: List<SessionSearchHit> = emptyList(),
     val showOnlyActive: Boolean = false,
     val agentStatusBySessionId: Map<String, AgentStatusEntry> = emptyMap(),
+    val apiKeysSaving: Boolean = false,
+    val apiKeysSaveMessage: String? = null,
 ) {
 
     val isSearchActive: Boolean get() = searchQuery.isNotBlank()

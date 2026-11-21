@@ -10,6 +10,7 @@ import dev.claudeadmin.domain.repository.McpServerRepository
 import dev.claudeadmin.domain.repository.OpenCodeMdRepository
 import dev.claudeadmin.domain.repository.OpenCodeSettingsRepository
 import dev.claudeadmin.domain.repository.OutputStyleRepository
+import dev.claudeadmin.domain.repository.ProjectApiKeysRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.SkillRepository
 
@@ -24,6 +25,7 @@ class LoadProjectDetailsUseCase(
     private val mcpServers: McpServerRepository,
     private val openCodeMd: OpenCodeMdRepository,
     private val openCodeSettings: OpenCodeSettingsRepository,
+    private val projectApiKeys: ProjectApiKeysRepository,
 ) {
     suspend operator fun invoke(id: ProjectId): ProjectDetails? {
         val project = projects.get(id) ?: return null
@@ -43,6 +45,7 @@ class LoadProjectDetailsUseCase(
             userOpenCodeMds = openCodeMd.loadUser(),
             projectOpenCodeSettings = openCodeSettings.loadProject(project.path),
             userOpenCodeSettings = openCodeSettings.loadUser(),
+            apiKeys = projectApiKeys.load(project.path),
         )
     }
 }

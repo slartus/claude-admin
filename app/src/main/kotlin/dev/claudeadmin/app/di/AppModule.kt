@@ -1,6 +1,7 @@
 package dev.claudeadmin.app.di
 
 import dev.claudeadmin.data.agent.FileAgentRepository
+import dev.claudeadmin.data.apikeys.FileProjectApiKeysRepository
 import dev.claudeadmin.data.claudemd.FileClaudeMdRepository
 import dev.claudeadmin.data.command.FileCommandRepository
 import dev.claudeadmin.data.git.FileGitRepository
@@ -36,6 +37,7 @@ import dev.claudeadmin.domain.repository.McpServerRepository
 import dev.claudeadmin.domain.repository.OpenCodeMdRepository
 import dev.claudeadmin.domain.repository.OpenCodeSettingsRepository
 import dev.claudeadmin.domain.repository.OutputStyleRepository
+import dev.claudeadmin.domain.repository.ProjectApiKeysRepository
 import dev.claudeadmin.domain.repository.ProjectGroupRepository
 import dev.claudeadmin.domain.repository.ProjectRepository
 import dev.claudeadmin.domain.repository.SessionSearchRepository
@@ -57,6 +59,7 @@ import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SearchSessionsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
+import dev.claudeadmin.domain.usecase.SaveProjectApiKeysUseCase
 import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -117,6 +120,7 @@ val appModule = module {
 
     single<OpenCodeMdRepository> { FileOpenCodeMdRepository() }
     single<OpenCodeSettingsRepository> { FileOpenCodeSettingsRepository() }
+    single<ProjectApiKeysRepository> { FileProjectApiKeysRepository() }
 
     single<PtyTerminalRepository> {
         PtyTerminalRepository(
@@ -142,8 +146,10 @@ val appModule = module {
         LoadProjectDetailsUseCase(
             get(), get(), get(), get(), get(), get(), get(), get(),
             get<OpenCodeMdRepository>(), get<OpenCodeSettingsRepository>(),
+            get<ProjectApiKeysRepository>(),
         )
     }
+    factory { SaveProjectApiKeysUseCase(get()) }
     factory { OpenTerminalUseCase(get(), get()) }
     factory { CloseTerminalUseCase(get()) }
     factory { SetProjectGitRootUseCase(get()) }

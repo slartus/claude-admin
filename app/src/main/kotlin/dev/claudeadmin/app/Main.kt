@@ -48,6 +48,7 @@ import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SearchSessionsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
+import dev.claudeadmin.domain.usecase.SaveProjectApiKeysUseCase
 import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import dev.claudeadmin.presentation.root.RootComponent
 import kotlinx.coroutines.FlowPreview
@@ -106,6 +107,7 @@ private fun ApplicationScope.AppContent(priorCrashes: List<File>) {
             moveProjectToGroupUseCase = koin.get<MoveProjectToGroupUseCase>(),
             searchSessionsUseCase = koin.get<SearchSessionsUseCase>(),
             agentStatusRepository = koin.get<AgentStatusRepository>(),
+            saveApiKeys = koin.get<SaveProjectApiKeysUseCase>(),
         )
     }
 

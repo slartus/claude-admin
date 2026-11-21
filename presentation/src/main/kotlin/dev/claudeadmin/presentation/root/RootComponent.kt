@@ -6,6 +6,7 @@ import dev.claudeadmin.domain.model.AiProvider
 import dev.claudeadmin.domain.model.AiSession
 import dev.claudeadmin.domain.model.GroupId
 import dev.claudeadmin.domain.model.Project
+import dev.claudeadmin.domain.model.ProjectApiKeys
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSessionId
 import dev.claudeadmin.domain.repository.AgentStatusRepository
@@ -27,6 +28,7 @@ import dev.claudeadmin.domain.usecase.RenameGroupUseCase
 import dev.claudeadmin.domain.usecase.ReorderProjectsUseCase
 import dev.claudeadmin.domain.usecase.SearchSessionsUseCase
 import dev.claudeadmin.domain.usecase.SetProjectGitRootUseCase
+import dev.claudeadmin.domain.usecase.SaveProjectApiKeysUseCase
 import dev.claudeadmin.domain.usecase.ToggleGroupCollapsedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +68,7 @@ class RootComponent(
     private val moveProjectToGroupUseCase: MoveProjectToGroupUseCase,
     private val searchSessionsUseCase: SearchSessionsUseCase,
     private val agentStatusRepository: AgentStatusRepository,
+    private val saveApiKeys: SaveProjectApiKeysUseCase,
 ) : ComponentContext by componentContext {
 
     private val scope: CoroutineScope = coroutineScope(Dispatchers.Main.immediate + SupervisorJob())
@@ -186,7 +189,7 @@ class RootComponent(
     }
 
     fun selectProject(id: ProjectId) {
-        _state.update { it.copy(selection = Selection.Details(id), addProjectError = null) }
+        _state.update { it.copy(selection = Selection.Details(id), addProjectError = null, apiKeysSaving = false, apiKeysSaveMessage = null) }
         loadDetailsFor(id)
     }
 
@@ -389,6 +392,34 @@ class RootComponent(
 
     fun clearSearch() {
         setSearchQuery("")
+    }
+
+    fun saveProjectApiKeys(projectId: ProjectId, keys: ProjectApiKeys) {
+        if (_state.value.apiKeysSaving) return
+        _state.update { it.copy(apiKeysSaving = true, apiKeysSaveMessage = null) }
+        scope.launch {
+            saveApiKeys.invoke(keys.projectPath, keys).fold(
+                onSuccess = {
+                    val stillOnProject = _state.value.selection?.projectId == projectId
+                    _state.update {
+                        it.copy(
+                            apiKeysSaving = false,
+                            apiKeysSaveMessage = if (stillOnProject) "Ключи сохранены" else null,
+                        )
+                    }
+                    if (stillOnProject) loadDetailsFor(projectId)
+                },
+                onFailure = { t ->
+                    _state.update {
+                        it.copy(apiKeysSaving = false, apiKeysSaveMessage = t.message ?: "Не удалось сохранить ключи")
+                    }
+                },
+            )
+        }
+    }
+
+    fun dismissApiKeysMessage() {
+        _state.update { it.copy(apiKeysSaveMessage = null) }
     }
 
     fun toggleShowOnlyActive() {

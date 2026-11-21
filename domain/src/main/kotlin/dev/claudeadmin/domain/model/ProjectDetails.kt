@@ -16,4 +16,5 @@ data class ProjectDetails(
     val userOpenCodeMds: List<OpenCodeMd> = emptyList(),
     val projectOpenCodeSettings: OpenCodeSettings? = null,
     val userOpenCodeSettings: OpenCodeSettings? = null,
+    val apiKeys: ProjectApiKeys? = null,
 )

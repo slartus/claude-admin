@@ -84,6 +84,12 @@ fun RootScreen(
                                 state = state.details,
                                 onOpenFile = ::openInDefaultApp,
                                 onRevealInFinder = ::revealInFinder,
+                                apiKeysSaving = state.apiKeysSaving,
+                                apiKeysSaveMessage = state.apiKeysSaveMessage,
+                                onSaveApiKeys = { details, keys ->
+                                    component.saveProjectApiKeys(sel.projectId, keys)
+                                },
+                                onDismissApiKeysMessage = component::dismissApiKeysMessage,
                             )
                             is Selection.Terminal -> TerminalView(sessionId = sel.terminalId, ptyRepo = ptyRepo)
                         }

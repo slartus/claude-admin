@@ -50,6 +50,7 @@ import dev.claudeadmin.domain.model.OpenCodeMd
 import dev.claudeadmin.domain.model.OpenCodeSettings
 import dev.claudeadmin.domain.model.OutputStyle
 import dev.claudeadmin.domain.model.OutputStyleScope
+import dev.claudeadmin.domain.model.ProjectApiKeys
 import dev.claudeadmin.domain.model.ProjectDetails
 import dev.claudeadmin.domain.model.Skill
 import dev.claudeadmin.domain.model.SkillScope
@@ -65,6 +66,10 @@ fun DetailsView(
     state: DetailsState,
     onOpenFile: (String) -> Unit,
     onRevealInFinder: (String) -> Unit,
+    apiKeysSaving: Boolean = false,
+    apiKeysSaveMessage: String? = null,
+    onSaveApiKeys: (ProjectDetails, ProjectApiKeys) -> Unit = { _, _ -> },
+    onDismissApiKeysMessage: () -> Unit = {},
 ) {
     Box(Modifier.fillMaxSize()) {
         when (state) {
@@ -77,6 +82,10 @@ fun DetailsView(
                 details = state.details,
                 onOpenFile = onOpenFile,
                 onRevealInFinder = onRevealInFinder,
+                apiKeysSaving = apiKeysSaving,
+                apiKeysSaveMessage = apiKeysSaveMessage,
+                onSaveApiKeys = onSaveApiKeys,
+                onDismissApiKeysMessage = onDismissApiKeysMessage,
             )
         }
     }
@@ -94,6 +103,10 @@ private fun Content(
     details: ProjectDetails,
     onOpenFile: (String) -> Unit,
     onRevealInFinder: (String) -> Unit,
+    apiKeysSaving: Boolean,
+    apiKeysSaveMessage: String?,
+    onSaveApiKeys: (ProjectDetails, ProjectApiKeys) -> Unit,
+    onDismissApiKeysMessage: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(ScopeTab.PROJECT) }
     val sectionExpanded = remember { mutableStateMapOf<String, Boolean>() }
@@ -125,6 +138,17 @@ private fun Content(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (tab == ScopeTab.PROJECT) {
+                item(key = "api-keys") {
+                    ApiKeysCard(
+                        details = details,
+                        saving = apiKeysSaving,
+                        saveMessage = apiKeysSaveMessage,
+                        onSave = { keys -> onSaveApiKeys(details, keys) },
+                        onDismissMessage = onDismissApiKeysMessage,
+                    )
+                }
+            }
             sections.forEach { section ->
                 val defaultExpanded = section.items.size <= 1
                 val expanded = sectionExpanded[section.title] ?: defaultExpanded
