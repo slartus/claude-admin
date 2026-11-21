@@ -125,6 +125,7 @@ val appModule = module {
     single<PtyTerminalRepository> {
         PtyTerminalRepository(
             hookPluginInstaller = get(),
+            projectApiKeys = get(),
             scope = get(qualifier = org.koin.core.qualifier.named("AppScope")),
         )
     }

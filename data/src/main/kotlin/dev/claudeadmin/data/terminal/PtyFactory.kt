@@ -23,8 +23,10 @@ object PtyFactory {
         projectPath: String,
         command: String = DEFAULT_COMMAND,
         claudeSettingsPath: String? = null,
+        extraEnv: Map<String, String> = emptyMap(),
     ): PtyBackend {
-        val env = buildEnv(claudeSettingsPath != null)
+        val env = buildEnv(claudeSettingsPath != null).toMutableMap()
+        env.putAll(extraEnv)
         val shell = System.getenv("SHELL") ?: "/bin/zsh"
         val cmd = arrayOf(shell, "-l", "-i", "-c", command)
         val process: PtyProcess = PtyProcessBuilder(cmd)

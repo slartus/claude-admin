@@ -8,6 +8,7 @@ import dev.claudeadmin.domain.model.Project
 import dev.claudeadmin.domain.model.ProjectId
 import dev.claudeadmin.domain.model.TerminalSession
 import dev.claudeadmin.domain.model.TerminalSessionId
+import dev.claudeadmin.domain.repository.ProjectApiKeysRepository
 import dev.claudeadmin.domain.repository.TerminalRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class PtyTerminalRepository(
     private val hookPluginInstaller: FileHookPluginInstaller? = null,
+    private val projectApiKeys: ProjectApiKeysRepository,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : TerminalRepository {
 
@@ -95,7 +97,8 @@ class PtyTerminalRepository(
             hookPluginInstaller?.pluginDir?.absolutePath
         } else null
         val fullCommand = buildCommand(provider, resumeSessionId, aiSessionId, claudeSettingsPath, pluginDir, resumeLastSession)
-        val backend = PtyFactory.spawn(cwd, fullCommand, claudeSettingsPath)
+        val extraEnv = if (provider == AiProvider.OPENCODE) openCodeOverrideEnv(projectApiKeys, cwd) else emptyMap()
+        val backend = PtyFactory.spawn(cwd, fullCommand, claudeSettingsPath, extraEnv)
         val session = TerminalSession(
             id = TerminalSessionId(UUID.randomUUID().toString()),
             projectId = projectId,
@@ -113,6 +116,14 @@ class PtyTerminalRepository(
             resolveOpenCodeSessionId(session.id, cwd, spawnTs)
         }
         session
+    }
+
+    internal suspend fun openCodeOverrideEnv(repo: ProjectApiKeysRepository, cwd: String): Map<String, String> {
+        val content = runCatching {
+            val keys = repo.load(cwd)
+            OpenCodeOverrideBuilder.buildConfigContent(keys.openCodeProviders)
+        }.getOrNull() ?: return emptyMap()
+        return mapOf(OpenCodeOverrideBuilder.CONFIG_CONTENT_ENV to content)
     }
 
     private fun resolveOpenCodeSessionId(terminalId: TerminalSessionId, cwd: String, spawnTs: Long) {

@@ -157,7 +157,12 @@ fun ApiKeysCard(
         HorizontalDivider()
 
         Text(
-            text = "OpenCode — opencode.json",
+            text = "OpenCode — приватные ключи (инжектятся при запуске)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "Ключ хранится приватно в приложении и передаётся в opencode через окружение. Модели и название провайдера берутся из глобального ~/.config/opencode/opencode.json.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -317,6 +322,7 @@ private fun AddProviderMenu(onAdd: (ClaudePreset) -> Unit) {
 }
 
 private val OPENCODE_PRESETS = listOf(
+    ClaudePreset("gpustack", "gpustack", "", "", ClaudeApiConfig.DEFAULT_KEY_ENV_VAR),
     ClaudePreset("anthropic", "Anthropic", "", "", ClaudeApiConfig.DEFAULT_KEY_ENV_VAR),
     ClaudePreset("openai", "OpenAI", "", "", ClaudeApiConfig.DEFAULT_KEY_ENV_VAR),
     ClaudePreset("deepseek", "DeepSeek", "", "", ClaudeApiConfig.DEFAULT_KEY_ENV_VAR),

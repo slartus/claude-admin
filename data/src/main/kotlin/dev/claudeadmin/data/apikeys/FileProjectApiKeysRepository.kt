@@ -1,5 +1,6 @@
 package dev.claudeadmin.data.apikeys
 
+import dev.claudeadmin.data.util.AppDirs
 import dev.claudeadmin.domain.model.ClaudeApiConfig
 import dev.claudeadmin.domain.model.OpenCodeProviderConfig
 import dev.claudeadmin.domain.model.ProjectApiKeys
@@ -7,14 +8,19 @@ import dev.claudeadmin.domain.repository.ProjectApiKeysRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 
-class FileProjectApiKeysRepository : ProjectApiKeysRepository {
+class FileProjectApiKeysRepository(
+    private val keysFile: File = AppDirs.openCodeKeysFile,
+) : ProjectApiKeysRepository {
 
     private val json = Json {
         prettyPrint = true
@@ -92,63 +98,42 @@ class FileProjectApiKeysRepository : ProjectApiKeysRepository {
     }
 
     private fun loadOpenCode(projectPath: String): List<OpenCodeProviderConfig> {
-        val file = openCodeFile(projectPath) ?: return emptyList()
-        val root = parseObject(file.readText()) ?: return emptyList()
-        val providers = root["providers"]?.asObject() ?: return emptyList()
-        return providers.mapNotNull { (id, value) ->
-            val provider = value.asObject() ?: return@mapNotNull null
-            val settings = provider["settings"]?.asObject() ?: JsonObject(emptyMap())
+        val map = readKeysMap() ?: return emptyList()
+        val list = map[projectPath]?.asArray() ?: return emptyList()
+        return list.mapNotNull { el ->
+            val obj = el.asObject() ?: return@mapNotNull null
             OpenCodeProviderConfig(
-                providerId = id,
-                apiKey = settings.contentOrBlank("apiKey"),
-                baseUrl = settings.contentOrBlank("baseURL"),
+                providerId = obj.contentOrBlank("providerId"),
+                apiKey = obj.contentOrBlank("apiKey"),
+                baseUrl = obj.contentOrBlank("baseUrl"),
             )
         }
     }
 
     private fun saveOpenCode(projectPath: String, providers: List<OpenCodeProviderConfig>) {
-        val file = openCodeFile(projectPath) ?: File(projectPath, ".opencode.json")
-        val root = readOrNew(file)
-        val existingProviders = (root["providers"]?.asObject() ?: JsonObject(emptyMap())).toMutableMap()
-
-        val retainedIds = providers.mapNotNull { it.providerId.takeIf(String::isNotBlank) }.toSet()
-        existingProviders.keys.retainAll(retainedIds.intersect(existingProviders.keys))
-
-        providers.forEach { config ->
-            val id = config.providerId
-            if (id.isBlank()) return@forEach
-            val provider = (existingProviders[id]?.asObject() ?: JsonObject(emptyMap())).toMutableMap()
-            val settings = (provider["settings"]?.asObject() ?: JsonObject(emptyMap())).toMutableMap()
-
-            if (config.apiKey.isNotBlank()) {
-                settings["apiKey"] = JsonPrimitive(config.apiKey)
-            } else {
-                settings.remove("apiKey")
+        val map = (readKeysMap() ?: JsonObject(emptyMap())).toMutableMap()
+        val normalized = providers
+            .filter { it.providerId.isNotBlank() }
+            .map { config ->
+                buildJsonObject {
+                    put("providerId", JsonPrimitive(config.providerId))
+                    put("apiKey", JsonPrimitive(config.apiKey))
+                    put("baseUrl", JsonPrimitive(config.baseUrl))
+                }
             }
-            if (config.baseUrl.isNotBlank()) {
-                settings["baseURL"] = JsonPrimitive(config.baseUrl)
-            } else {
-                settings.remove("baseURL")
-            }
-
-            provider["settings"] = JsonObject(settings)
-            existingProviders[id] = JsonObject(provider)
+        if (normalized.isEmpty()) {
+            map.remove(projectPath)
+        } else {
+            map[projectPath] = JsonArray(normalized)
         }
-
-        val newRoot = root.toMutableMap().apply { this["providers"] = JsonObject(existingProviders) }
-        writeJson(file, JsonObject(newRoot))
+        writePrivate(keysFile, JsonObject(map))
     }
 
     private fun claudeSettingsFile(projectPath: String): File = File(projectPath, ".claude/settings.local.json")
 
-    private fun openCodeFile(projectPath: String): File? {
-        val dot = File(projectPath, ".opencode.json")
-        val canonical = File(projectPath, "opencode.json")
-        return when {
-            dot.isFile -> dot
-            canonical.isFile -> canonical
-            else -> null
-        }
+    private fun readKeysMap(): JsonObject? {
+        if (!keysFile.isFile) return null
+        return parseObject(keysFile.readText())
     }
 
     private fun readOrNew(file: File): JsonObject {
@@ -165,6 +150,13 @@ class FileProjectApiKeysRepository : ProjectApiKeysRepository {
         file.writeText(text)
     }
 
+    private fun writePrivate(file: File, obj: JsonObject) {
+        writeJson(file, obj)
+        runCatching {
+            Files.setPosixFilePermissions(file.toPath(), PosixFilePermissions.fromString("rw-------"))
+        }
+    }
+
     private fun JsonObject.contentOrBlank(key: String): String =
         when (val el = this[key]) {
             is JsonPrimitive -> if (el.isString) el.content else ""
@@ -173,3 +165,5 @@ class FileProjectApiKeysRepository : ProjectApiKeysRepository {
 }
 
 private fun JsonElement?.asObject(): JsonObject? = this as? JsonObject
+
+private fun JsonElement?.asArray(): JsonArray? = this as? JsonArray

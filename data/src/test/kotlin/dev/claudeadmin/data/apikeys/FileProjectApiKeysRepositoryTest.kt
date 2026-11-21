@@ -6,6 +6,7 @@ import dev.claudeadmin.domain.model.ProjectApiKeys
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -15,7 +16,14 @@ class FileProjectApiKeysRepositoryTest {
     @TempDir
     lateinit var tmp: File
 
-    private val repo = FileProjectApiKeysRepository()
+    private lateinit var keysFile: File
+    private lateinit var repo: FileProjectApiKeysRepository
+
+    @BeforeEach
+    fun setUp() {
+        keysFile = File(tmp, "opencode-keys.json")
+        repo = FileProjectApiKeysRepository(keysFile = keysFile)
+    }
 
     @Test
     fun `load returns empty config when no files exist`() = runBlocking {
@@ -25,7 +33,7 @@ class FileProjectApiKeysRepositoryTest {
     }
 
     @Test
-    fun `load reads claude env and opencode providers`() = runBlocking {
+    fun `load reads claude env and private-stored opencode providers`() = runBlocking {
         File(tmp, ".claude").mkdirs()
         File(tmp, ".claude/settings.local.json").writeText(
             """
@@ -38,18 +46,13 @@ class FileProjectApiKeysRepositoryTest {
             }
             """.trimIndent(),
         )
-        File(tmp, "opencode.json").writeText(
+        keysFile.writeText(
             """
             {
-              "providers": {
-                "anthropic": {
-                  "settings": { "apiKey": "sk-ant-456", "baseURL": "https://api.anthropic.com" }
-                },
-                "deepseek": {
-                  "models": { "deepseek-chat": {} },
-                  "settings": { "apiKey": "sk-789" }
-                }
-              }
+              "${tmp.path}": [
+                { "providerId": "anthropic", "apiKey": "sk-ant-456", "baseUrl": "https://api.anthropic.com" },
+                { "providerId": "deepseek", "apiKey": "sk-789", "baseUrl": "" }
+              ]
             }
             """.trimIndent(),
         )
@@ -145,7 +148,7 @@ class FileProjectApiKeysRepositoryTest {
         repo.save(tmp.path, keys)
 
         assertTrue(File(tmp, ".claude/settings.local.json").isFile)
-        assertTrue(File(tmp, ".opencode.json").isFile)
+        assertTrue(keysFile.isFile)
 
         val loaded = repo.load(tmp.path)
         assertEquals("sk-1", loaded.claude.apiKey)
@@ -154,35 +157,37 @@ class FileProjectApiKeysRepositoryTest {
     }
 
     @Test
-    fun `save opencode preserves unrelated fields and removes absent providers`() = runBlocking {
-        File(tmp, "opencode.json").writeText(
+    fun `save opencode scopes by project and preserves other projects`() = runBlocking {
+        val projectA = File(tmp, "project-a").apply { mkdirs() }
+        val projectB = File(tmp, "project-b").apply { mkdirs() }
+        keysFile.writeText(
             """
             {
-              "customField": 1,
-              "providers": {
-                "anthropic": { "settings": { "apiKey": "keep", "baseURL": "https://a.com" } },
-                "openai": { "models": { "gpt-4o": {} }, "settings": { "apiKey": "will-be-removed" } }
-              }
+              "${projectA.path}": [
+                { "providerId": "openai", "apiKey": "sk-other", "baseUrl": "" }
+              ]
             }
             """.trimIndent(),
         )
 
-        val keys = ProjectApiKeys(
-            projectPath = tmp.path,
-            openCodeProviders = listOf(
-                OpenCodeProviderConfig(providerId = "anthropic", apiKey = "sk-updated", baseUrl = "https://b.com"),
+        repo.save(
+            projectB.path,
+            ProjectApiKeys(
+                projectPath = projectB.path,
+                openCodeProviders = listOf(OpenCodeProviderConfig(providerId = "anthropic", apiKey = "sk-updated", baseUrl = "https://b.com")),
             ),
         )
-        repo.save(tmp.path, keys)
 
-        val text = File(tmp, "opencode.json").readText()
-        assertTrue(text.contains("customField"))
+        val text = keysFile.readText()
         assertTrue(text.contains("sk-updated"))
-        assertTrue(text.contains("anthropic"))
         assertTrue(text.contains("https://b.com"))
-        assertTrue(!text.contains("openai"))
-        assertTrue(!text.contains("will-be-removed"))
-        assertTrue(!text.contains("keep"))
+        assertTrue(text.contains("sk-other"))
+
+        val aLoaded = repo.load(projectA.path)
+        assertEquals(listOf("openai"), aLoaded.openCodeProviders.map { it.providerId })
+
+        val bLoaded = repo.load(projectB.path)
+        assertEquals(listOf("anthropic"), bLoaded.openCodeProviders.map { it.providerId })
     }
 
     @Test
@@ -209,56 +214,32 @@ class FileProjectApiKeysRepositoryTest {
             ),
         )
         repo.save(tmp.path, keys)
-        val text = File(tmp, ".opencode.json").readText()
-        assertTrue(!text.contains("anthropic\n"))
+        val text = keysFile.readText()
         assertTrue(text.contains("sk-ok"))
+        assertTrue(!text.contains("\"providerId\": \"\""))
     }
 
     @Test
-    fun `keyless custom provider survives save round-trip`() = runBlocking {
-        File(tmp, "opencode.json").writeText(
-            """
-            {
-              "providers": {
-                "my-custom": { "npm": "@ai-sdk/custom", "models": { "m1": {} } },
-                "anthropic": { "settings": { "apiKey": "sk-1" } }
-              }
-            }
-            """.trimIndent(),
+    fun `keyless provider survives save round-trip`() = runBlocking {
+        val keys = ProjectApiKeys(
+            projectPath = tmp.path,
+            openCodeProviders = listOf(OpenCodeProviderConfig(providerId = "my-custom")),
         )
+        repo.save(tmp.path, keys)
 
         val loaded = repo.load(tmp.path)
         val myCustom = loaded.openCodeProviders.first { it.providerId == "my-custom" }
         assertTrue(myCustom.apiKey.isBlank())
         assertTrue(myCustom.baseUrl.isBlank())
-
-        repo.save(tmp.path, loaded)
-
-        val text = File(tmp, "opencode.json").readText()
-        assertTrue(text.contains("my-custom"))
-        assertTrue(text.contains("@ai-sdk/custom"))
-        assertTrue(text.contains("m1"))
-        assertTrue(text.contains("sk-1"))
     }
 
     @Test
-    fun `prefers dot opencode json over plain when both exist`() = runBlocking {
+    fun `does not read opencode keys from project config file`() = runBlocking {
         File(tmp, "opencode.json").writeText(
-            """{ "providers": { "anthropic": { "settings": { "apiKey": "sk-plain" } } } }""",
-        )
-        File(tmp, ".opencode.json").writeText(
-            """{ "providers": { "anthropic": { "settings": { "apiKey": "sk-dot" } } } }""",
+            """{ "providers": { "anthropic": { "settings": { "apiKey": "sk-from-file" } } } }""",
         )
 
         val loaded = repo.load(tmp.path)
-        assertEquals("sk-dot", loaded.openCodeProviders.first { it.providerId == "anthropic" }.apiKey)
-
-        repo.save(tmp.path, ProjectApiKeys(projectPath = tmp.path, openCodeProviders = listOf(
-            OpenCodeProviderConfig(providerId = "anthropic", apiKey = "sk-new"),
-        )))
-
-        val text = File(tmp, ".opencode.json").readText()
-        assertTrue(text.contains("sk-new"))
-        assertTrue(!text.contains("sk-dot"))
+        assertTrue(loaded.openCodeProviders.isEmpty())
     }
 }
